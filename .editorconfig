@@ -1,0 +1,6 @@
+[*.cs]
+
+# no unreachable code complaints
+dotnet_diagnostic.CS0162.severity = silent
+
+

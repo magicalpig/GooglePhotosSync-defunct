@@ -1,0 +1,49 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "name": "Build and Launch Vidprobe",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/vidprobe",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "logging": {
+        "moduleLoad": false,
+        "trace": "verbose"
+      },
+      "env":  {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Build and Launch jsonToDb",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/jsonToDb/bin/Debug/net8.0-windows/jsonToDb.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/jsonToDb",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "logging": {
+        "moduleLoad": false,
+        "trace": true
+      },
+      "env":  {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "justMyCode": false
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Dev",
+      "program": "${workspaceFolder}/bin/Debug/net8.0-windows/jsonToDb.dll",
+      "type": "coreclr",
+      "request": "launch",
+      "console": "internalConsole",
+      "preLaunchTask": "buildDev",
+      "logging": {
+        "moduleLoad": false
+      },
+      "env":  {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Launch Prod",
+      "program": "${workspaceFolder}/bin/Release/net8.0-windows/jsonToDb.dll",
+      "type": "coreclr",
+      "request": "launch",
+      "console": "internalConsole",
+      "preLaunchTask": "buildProd",
+      "logging": {
+        "moduleLoad": false
+      },
+      "env":  {
+        "DOTNET_ENVIRONMENT": "Production"
+      }
+    }
+  ]
+}
