@@ -6,11 +6,29 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace VidCommon.Migrations
 {
     /// <inheritdoc />
-    public partial class AddMetadataTable : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "GoogleVideos",
+                columns: table => new
+                {
+                    GoogleId = table.Column<string>(type: "TEXT", nullable: false),
+                    URL = table.Column<string>(type: "TEXT", nullable: true),
+                    Name = table.Column<string>(type: "TEXT", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    Description = table.Column<string>(type: "TEXT", nullable: true),
+                    Duration = table.Column<TimeSpan>(type: "TEXT", nullable: false),
+                    DurationMs = table.Column<long>(type: "INTEGER", nullable: false),
+                    Size = table.Column<long>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_GoogleVideos", x => x.GoogleId);
+                });
+
             migrationBuilder.CreateTable(
                 name: "GoogleVideosMetadataFromChrome",
                 columns: table => new
@@ -43,35 +61,6 @@ namespace VidCommon.Migrations
                 {
                     table.PrimaryKey("PK_WindowsVideos", x => x.Path);
                 });
-
-            migrationBuilder.CreateTable(
-                name: "GoogleVideos",
-                columns: table => new
-                {
-                    GoogleId = table.Column<string>(type: "TEXT", nullable: false),
-                    URL = table.Column<string>(type: "TEXT", nullable: true),
-                    VideoMetadataFromChromeProductId = table.Column<string>(type: "TEXT", nullable: true),
-                    Name = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    Description = table.Column<string>(type: "TEXT", nullable: true),
-                    Duration = table.Column<TimeSpan>(type: "TEXT", nullable: false),
-                    DurationMs = table.Column<long>(type: "INTEGER", nullable: false),
-                    Size = table.Column<long>(type: "INTEGER", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_GoogleVideos", x => x.GoogleId);
-                    table.ForeignKey(
-                        name: "FK_GoogleVideos_GoogleVideosMetadataFromChrome_VideoMetadataFromChromeProductId",
-                        column: x => x.VideoMetadataFromChromeProductId,
-                        principalTable: "GoogleVideosMetadataFromChrome",
-                        principalColumn: "ProductId");
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_GoogleVideos_VideoMetadataFromChromeProductId",
-                table: "GoogleVideos",
-                column: "VideoMetadataFromChromeProductId");
         }
 
         /// <inheritdoc />
@@ -81,10 +70,10 @@ namespace VidCommon.Migrations
                 name: "GoogleVideos");
 
             migrationBuilder.DropTable(
-                name: "WindowsVideos");
+                name: "GoogleVideosMetadataFromChrome");
 
             migrationBuilder.DropTable(
-                name: "GoogleVideosMetadataFromChrome");
+                name: "WindowsVideos");
         }
     }
 }

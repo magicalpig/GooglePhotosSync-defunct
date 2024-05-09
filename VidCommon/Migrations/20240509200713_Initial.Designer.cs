@@ -11,8 +11,8 @@ using VidCommon;
 namespace VidCommon.Migrations
 {
     [DbContext(typeof(VideoContext))]
-    [Migration("20240429150406_AddMetadataTable")]
-    partial class AddMetadataTable
+    [Migration("20240509200713_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -46,12 +46,7 @@ namespace VidCommon.Migrations
                     b.Property<string>("URL")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("VideoMetadataFromChromeProductId")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("GoogleId");
-
-                    b.HasIndex("VideoMetadataFromChromeProductId");
 
                     b.ToTable("GoogleVideos");
                 });
@@ -108,15 +103,6 @@ namespace VidCommon.Migrations
                     b.HasKey("ProductId");
 
                     b.ToTable("GoogleVideosMetadataFromChrome");
-                });
-
-            modelBuilder.Entity("VidCommon.Models.VideoFileGoogle", b =>
-                {
-                    b.HasOne("VidCommon.Models.VideoMetadataFromChrome", "VideoMetadataFromChrome")
-                        .WithMany()
-                        .HasForeignKey("VideoMetadataFromChromeProductId");
-
-                    b.Navigation("VideoMetadataFromChrome");
                 });
 #pragma warning restore 612, 618
         }
