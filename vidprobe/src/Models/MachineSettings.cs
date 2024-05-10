@@ -1,2 +1,6 @@
 namespace VidProbe.Models;
-public record MachineSettings(string SourceDir, string FFMpegPath);
+public class MachineSettings
+{
+  public string? SourceDir { get; set; }
+  public string? FFMpegPath { get; set; }
+}  

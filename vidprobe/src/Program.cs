@@ -28,14 +28,23 @@ class Program
     var config = builder.Configuration;
     var settings = config.GetSection("Settings");
 
-    // load machine-specific settings from the "MachineSettings" key of appsettings.json
-    var allMachineSettings = new Dictionary<string, MachineSettings>();
-    config.GetSection("MachineSettings").Bind(allMachineSettings);
+    // load machine-specific settings from the "MachineSettings" key of appsettings.json    
     string machineName = Environment.MachineName;
-    MachineSettings? currentMachineSettings;
-    if (!allMachineSettings.TryGetValue(machineName, out currentMachineSettings))
+    MachineSettings? currentMachineSettings = null;
+    foreach (var section in config.GetSection("MachineSettings").GetChildren())
     {
-      Console.WriteLine($"MachineSettings does not contain a key for machine name {machineName}");
+      string n = section.Key[..15]; // machineName from Environment.MachineName is max 15 characters
+      if (n.Equals(machineName, StringComparison.OrdinalIgnoreCase))
+      {
+        currentMachineSettings = new MachineSettings();
+        config.GetSection($"MachineSettings:{section.Key}").Bind(currentMachineSettings);
+        break;
+      }
+    }
+    
+    if (currentMachineSettings is null)
+    {
+      Console.WriteLine($"No MachineSettings defined in appsettings.json for machine {Environment.MachineName}");
       Environment.Exit(1);
     }
 
@@ -125,38 +134,39 @@ class Program
 
     
     #region LocalVideoFiles
-    // Videos from local file system
     Console.WriteLine($"Collecting information about video files in {sourceDir}");
 
     string? ffmpegPath = currentMachineSettings.FFMpegPath;
     if (ffmpegPath is not null)
     {
       GlobalFFOptions.Configure(options => options.BinaryFolder = ffmpegPath);
-    }  
-
-    // Filter down to video file types
-    string[] filePaths = [];
-    if (Directory.Exists(sourceDir))
-    {     
-      filePaths = Directory.GetFiles(sourceDir
-, "*", SearchOption.AllDirectories)
-        .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
-        .Select(f => Path.GetFullPath(f))
-        .ToArray();
-      Console.WriteLine($"Found {filePaths.Length} files on local file system folder {sourceDir
-}");
-      Console.WriteLine($"Total existing records in windowsVideo table: {db.WindowsVideos.Count()}");
     }
     else
     {
-      Console.WriteLine($"Directory {sourceDir
-} does not exist.");
+      Console.WriteLine("No \"FFMpegPath setting\" defined for this machine. ffprobe will not be used to collect video metadata.");
     }
 
+
+    // Collect video files from local file system
+    string[] filePaths = [];
+    if (Directory.Exists(sourceDir))
+    {     
+      filePaths = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories)
+        .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
+        .Select(f => Path.GetFullPath(f))
+        .ToArray();
+      Console.WriteLine($"Found {filePaths.Length} files on local file system folder {sourceDir}");      
+    }
+    else
+    {
+      Console.WriteLine($"Directory {sourceDir} does not exist.");
+    }
+
+    // convert files to records
     List<VideoFileWindows> records = [];    
-    int i = 0;
     // Possibly limit how many local video files are examined/saved into database
     int maxFilesLocal = settings.GetValue<int>("FileLimitLocal");
+    int i = 0;
     foreach (string filePath in filePaths)
     {
       if (maxFilesLocal > 0 && ++i > maxFilesLocal)
@@ -175,8 +185,9 @@ class Program
       
       #region Metadata
       // use ffprobe to get whatever metadata we can
-      IMediaAnalysis? mediaInfo = await FFProbe.AnalyseAsync(filePath);
-      
+      IMediaAnalysis? mediaInfo = null;
+      try { mediaInfo = FFProbe.Analyse(filePath); }
+      catch (Exception e) { Console.WriteLine($"Error with ffprobe: {e.Message}"); }
 
       // also use MicrosoftAPICodePack to get metadata
       string nameForShell = filePath.Replace("/", @"\");
@@ -201,7 +212,10 @@ class Program
       }
       
       // Metadata: duration
-      videoFile.DurationMs = (long)mediaInfo.Duration.TotalMilliseconds;
+      if (mediaInfo is not null)
+      {
+        videoFile.DurationMs = (long)mediaInfo.Duration.TotalMilliseconds;
+      }
       if (videoFile.DurationMs <= 0)
       {
         // Represents the actual play time of a media file and is measured in 100ns units, not milliseconds.
