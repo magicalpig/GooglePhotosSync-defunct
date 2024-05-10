@@ -83,7 +83,8 @@ class Program
     });
     db.SaveChanges();
 
-
+    // Offer to delete records from database if they weren't found on Google Photos
+    // but not if a page limit was used (meaning Google Photos was not completely queried)
     if (pageLimit is null)
     {
       // Check all videos in googleVideos table to see if any were not found by Google Photos API
@@ -96,24 +97,28 @@ class Program
           videosNotInGoogle.Add(video);
         }
       }
+
       int count = videosNotInGoogle.Count;
-      Console.WriteLine($"Total cases of video present in db but not on google photos: {count}");
-      Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
-      string? response = Console.ReadLine();
-      if (response?.Equals("Y", StringComparison.OrdinalIgnoreCase) ?? false)
+      if (count > 0)
       {
-        db.RemoveRange(videosNotInGoogle);
-        db.SaveChanges();
-        Console.WriteLine("Deleted videosNotInGoogle from the database.");
-        Console.WriteLine("List of GoogleIds for deleted records:");
-        foreach (var video in videosNotInGoogle)
+        Console.WriteLine($"Total cases of video present in db but not on google photos: {count}");
+        Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
+        string? response = Console.ReadLine();
+        if (response?.Equals("Y", StringComparison.OrdinalIgnoreCase) ?? false)
         {
-            Console.WriteLine(video.GoogleId);
+          db.RemoveRange(videosNotInGoogle);
+          db.SaveChanges();
+          Console.WriteLine("Deleted videosNotInGoogle from the database.");
+          Console.WriteLine("List of GoogleIds for deleted records:");
+          foreach (var video in videosNotInGoogle)
+          {
+              Console.WriteLine(video.GoogleId);
+          }
         }
-      }
-      else
-      {
-        Console.WriteLine("videosNotInGoogle will not be deleted from the database.");
+        else
+        {
+          Console.WriteLine("videosNotInGoogle will not be deleted from the database.");
+        }
       }
     }
 
@@ -122,6 +127,12 @@ class Program
     #region LocalVideoFiles
     // Videos from local file system
     Console.WriteLine($"Collecting information about video files in {sourceDir}");
+
+    string? ffmpegPath = currentMachineSettings.FFMpegPath;
+    if (ffmpegPath is not null)
+    {
+      GlobalFFOptions.Configure(options => options.BinaryFolder = ffmpegPath);
+    }  
 
     // Filter down to video file types
     string[] filePaths = [];
@@ -163,11 +174,12 @@ class Program
   
       
       #region Metadata
-      GlobalFFOptions.Configure(options => options.BinaryFolder = "c:/ffmpeg/bin");
       // use ffprobe to get whatever metadata we can
-      IMediaAnalysis mediaInfo = await FFProbe.AnalyseAsync(filePath);
+      IMediaAnalysis? mediaInfo = await FFProbe.AnalyseAsync(filePath);
+      
+
       // also use MicrosoftAPICodePack to get metadata
-      string nameForShell = filePath.Replace("/", @"\");        
+      string nameForShell = filePath.Replace("/", @"\");
       var shellFile = ShellFile.FromFilePath(nameForShell);
       var propertiesSystem = shellFile.Properties.System;
       
@@ -178,7 +190,7 @@ class Program
       }
       else
       {
-        if (mediaInfo.Format?.Tags?.TryGetValue("creation_time", out string? dateString) ?? false)
+        if (mediaInfo is not null && (mediaInfo.Format?.Tags?.TryGetValue("creation_time", out string? dateString) ?? false))
         {
           videoFile.CreatedDate = DateTime.Parse(dateString);
         }
