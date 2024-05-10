@@ -6,6 +6,7 @@ using VidCommon;
 using VidCommon.Models;
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Data;
+using VidProbe.Models;
 
 namespace VidProbe;
 
@@ -26,9 +27,20 @@ class Program
     var builder = Host.CreateApplicationBuilder();
     var config = builder.Configuration;
     var settings = config.GetSection("Settings");
-    string? dir             = settings["SourceDir"]; 
 
-    if (dir is null)
+    // load machine-specific settings from the "MachineSettings" key of appsettings.json
+    var allMachineSettings = new Dictionary<string, MachineSettings>();
+    config.GetSection("MachineSettings").Bind(allMachineSettings);
+    string machineName = Environment.MachineName;
+    MachineSettings? currentMachineSettings;
+    if (!allMachineSettings.TryGetValue(machineName, out currentMachineSettings))
+    {
+      Console.WriteLine($"MachineSettings does not contain a key for {machineName}");
+      Environment.Exit(1);
+    }
+
+    string? sourceDir = currentMachineSettings.SourceDir; 
+    if (sourceDir is null)
     {
       Console.WriteLine("appsettings.json needs to define SourceDir under the \"Settings\" key.");
       Environment.Exit(1);
@@ -109,25 +121,34 @@ class Program
     
     #region LocalVideoFiles
     // Videos from local file system
-    Console.WriteLine($"Collecting information about video files in {dir}");
-    // TODO: query more metadata (e.g. Title) from Windows file system
-    GlobalFFOptions.Configure(options => options.BinaryFolder = "c:/ffmpeg/bin");
+    Console.WriteLine($"Collecting information about video files in {sourceDir}");
 
-    // Possibly limit how many local video files are examined/saved into database
-    Int32.TryParse(settings["FileLimitLocal"], out int maxFilesLocal);
     // Filter down to video file types
-    string[] filePaths = Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
-      .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
-      .Select(f => Path.GetFullPath(f))
-      .ToArray();
-    Console.WriteLine($"Found {filePaths.Length} files on local file system folder {dir}");
-    Console.WriteLine($"Total existing records in windowsVideo table: {db.WindowsVideos.Count()}");
+    string[] filePaths = [];
+    if (Directory.Exists(sourceDir))
+    {     
+      filePaths = Directory.GetFiles(sourceDir
+, "*", SearchOption.AllDirectories)
+        .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
+        .Select(f => Path.GetFullPath(f))
+        .ToArray();
+      Console.WriteLine($"Found {filePaths.Length} files on local file system folder {sourceDir
+}");
+      Console.WriteLine($"Total existing records in windowsVideo table: {db.WindowsVideos.Count()}");
+    }
+    else
+    {
+      Console.WriteLine($"Directory {sourceDir
+} does not exist.");
+    }
 
     List<VideoFileWindows> records = [];    
     int i = 0;
+    // Possibly limit how many local video files are examined/saved into database
+    int maxFilesLocal = settings.GetValue<int>("FileLimitLocal");
     foreach (string filePath in filePaths)
     {
-      if (maxFilesLocal> 0 && ++i > maxFilesLocal)
+      if (maxFilesLocal > 0 && ++i > maxFilesLocal)
       {
         break;
       }
@@ -142,6 +163,7 @@ class Program
   
       
       #region Metadata
+      GlobalFFOptions.Configure(options => options.BinaryFolder = "c:/ffmpeg/bin");
       // use ffprobe to get whatever metadata we can
       IMediaAnalysis mediaInfo = await FFProbe.AnalyseAsync(filePath);
       // also use MicrosoftAPICodePack to get metadata
