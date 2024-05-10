@@ -1,5 +1,3 @@
 {
-  "ConnectionStrings": {
-      "DefaultConnection": "Data Source=C:/Users/Rance/Coding/VideoScraper/video_files.db"
-  }
+  "DbFileName": "video_files.db"
 }

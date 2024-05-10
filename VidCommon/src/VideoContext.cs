@@ -1,4 +1,4 @@
-using System.Reflection;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using VidCommon.Models;
@@ -18,16 +18,17 @@ public class VideoContext : DbContext
       .AddJsonFile("CommonSettings.json", optional: false, reloadOnChange: true);
 
     var configuration = builder.Build();
-    var connectionString = configuration.GetConnectionString("DefaultConnection");
-    if (connectionString == null)
-    {
-      throw new Exception("Could not find a connection string named 'DefaultConnection' in the settings.json file.");
-    }
+    var dbFileName = configuration.GetValue<string>("DbFileName") ?? throw new Exception("Could not find a db file name under the 'DbFileName' setting in CommonSettings.json.");
+    const int DirectoriesUp = 4;
+    var solutionRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+      string.Concat(Enumerable.Repeat("../", DirectoriesUp))));
+    var connectionString = $"Data Source={solutionRoot}{dbFileName}";
     DbPath = connectionString;
+    Console.WriteLine($"Database will be DbPath: {DbPath}");
   }
 
   protected override void OnConfiguring(DbContextOptionsBuilder options)
   {
-    options.UseSqlite(DbPath);    
+    options.UseSqlite(DbPath);
   }
 }
