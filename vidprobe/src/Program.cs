@@ -35,7 +35,7 @@ class Program
     MachineSettings? currentMachineSettings;
     if (!allMachineSettings.TryGetValue(machineName, out currentMachineSettings))
     {
-      Console.WriteLine($"MachineSettings does not contain a key for {machineName}");
+      Console.WriteLine($"MachineSettings does not contain a key for machine name {machineName}");
       Environment.Exit(1);
     }
 
