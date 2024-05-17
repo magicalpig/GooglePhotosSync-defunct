@@ -1,2 +1,6 @@
 **/obj/
 **/bin/
+video_files.db
+*.db-shm
+*.db-wal
+*.sqbpro

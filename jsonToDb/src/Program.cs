@@ -2,16 +2,19 @@
 // 1. File size, 2. Duration, 3. ID for the batchexecute API (different than the one used by REST API).
 // This metadata was scraped using the GPTK extension and saved in JSON files.
 // This program reads the JSON files and saves the metadata to the shared database defined by VidCommon.
-using System.Data.SQLite;
 using System.Text.Json;
 using VidCommon;
 using VidCommon.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace jsonToDb
 {
+  
   class Program
   {
+    private static readonly string SizesFile = "GoogleVideosMetadata.json";
+    private static readonly string DurationsFile = "GoogleVideosDurations.json";
+    private static readonly string IdMappingsFile = "RestToRpc.json";
+    
     private static string? ProjectFolder;
     private const string TableName = "GoogleVideosMetadataFromChrome";
     static void Main(string[] args)
@@ -29,7 +32,7 @@ namespace jsonToDb
       }
       
       // Load data from the JSON file that has the file sizes      
-      string jsonFilePath = Path.Combine(ProjectFolder, "GoogleVideosMetadata.json");
+      string jsonFilePath = Path.Combine(ProjectFolder, SizesFile);
       string jsonData = File.ReadAllText(jsonFilePath);
 
       // Parse JSON data
@@ -41,7 +44,7 @@ namespace jsonToDb
       }
 
       // Load data from the JSON file that has the video durations
-      string jsonFilePath2 = Path.Combine(ProjectFolder, "GoogleVideosDurations.json");
+      string jsonFilePath2 = Path.Combine(ProjectFolder, DurationsFile);
       string jsonData2 = File.ReadAllText(jsonFilePath2);
 
       // Parse JSON data and save to a dictionary mapping each video's batchexecute/short ID to its duration
@@ -65,7 +68,7 @@ namespace jsonToDb
       }
 
       // Now load JSON that matches a REST ID to a batchexecute RPC ID
-      string matchesJsonFilePath = Path.Combine(ProjectFolder, "RestToRpc.json");
+      string matchesJsonFilePath = Path.Combine(ProjectFolder, IdMappingsFile);
       string matchesJsonData = File.ReadAllText(matchesJsonFilePath);
       var matches = JsonSerializer.Deserialize<List<List<String>>>(matchesJsonData);
       

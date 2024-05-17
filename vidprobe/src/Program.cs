@@ -1,82 +1,51 @@
 ﻿using FFMpegCore;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using VidCommon;
 using VidCommon.Models;
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Data;
-using VidProbe.Models;
 
 namespace VidProbe;
-
 
 class Program
 {  
   public static async Task Main()
   {
-//    await SomethingElse();
-//    Environment.Exit(0);
-    // initialize db connection
-    var db = new VideoContext();
-    
-    // This does a lot of things like loading configuration, logging, setting up a services host.
-    // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
-    // It will also pull user secrets when in development mode.
-    // See: https://learn.microsoft.com/en-us/dotnet/core/extensions/generic-host?tabs=appbuilder
-    var builder = Host.CreateApplicationBuilder();
-    var config = builder.Configuration;
-    var settings = config.GetSection("Settings");
+    var host = CreateHost();
 
-    // load machine-specific settings from the "MachineSettings" key of appsettings.json    
-    string machineName = Environment.MachineName;
-    MachineSettings? currentMachineSettings = null;
-    foreach (var section in config.GetSection("MachineSettings").GetChildren())
+    var db = host.Services.GetRequiredService<VideoContext>();
+    var config = host.Services.GetRequiredService<IConfiguration>();
+    var settings = host.Services.GetRequiredService<Settings>();
+    var logger = host.Services.GetRequiredService<ILogger<Program>>();
+    if (settings.FreshDatabase)
     {
-      string n = section.Key[..15]; // machineName from Environment.MachineName is max 15 characters
-      if (n.Equals(machineName, StringComparison.OrdinalIgnoreCase))
-      {
-        currentMachineSettings = new MachineSettings();
-        config.GetSection($"MachineSettings:{section.Key}").Bind(currentMachineSettings);
-        break;
-      }
-    }
-    
-    if (currentMachineSettings is null)
-    {
-      Console.WriteLine($"No MachineSettings defined in appsettings.json for machine {Environment.MachineName}");
-      Environment.Exit(1);
-    }
-
-    string? sourceDir = currentMachineSettings.SourceDir; 
-    if (sourceDir is null)
-    {
-      Console.WriteLine("appsettings.json needs to define SourceDir under the \"Settings\" key.");
-      Environment.Exit(1);
-    }
-  
-    if (settings.GetValue<Boolean>("FreshDatabase"))
-    {
-      Console.WriteLine("Clearing out any existing records from database");
-      db.WindowsVideos.RemoveRange(db.WindowsVideos);
+      logger.LogInformation("Per the FreshDatabase setting, clearing out any existing records from Google videos and Windows videos database tables");
+      db.WindowsVideos.RemoveRange(db.WindowsVideos);      
       db.GoogleVideos.RemoveRange(db.GoogleVideos);
     }
     
     // Videos from Google
     // Most metadata comes from making calls to the REST API
-     // but the file size, duration, and short id come from a local database (googleFileSizes.db) populated
-    // by the jsonToDb project (which uses a browser-based script to call the batchexecute RPC API)
-    var google = new GoogleConnector(config, db);
+    // but the file size, duration, and short id come from the jsonToDb project
+    //  (which uses a browser-based script to call the batchexecute RPC API)
+    var google = host.Services.GetRequiredService<GoogleConnector>();
     
-    int? pageLimit = Int32.TryParse(settings["PageLimitGoogle"], out int parsedPageLimit) && parsedPageLimit > 0 ? parsedPageLimit : null;
-    Console.WriteLine($"Collecting information about Google videos up to {pageLimit} pages");
-    List<VideoFileGoogle> googleVideos = await google.ScrapeVideos(pageLimit);
-    googleVideos.ForEach(v =>
+    int? pageLimit = settings.PageLimitGoogle;
+    if (pageLimit > 0)
+      logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages", pageLimit);
+    else
+      pageLimit = null;
+    
+    List<string> newlyScrapedIds = [];
+    await foreach (var v in google.ScrapeVideos(pageLimit))
     {
       VideoFileGoogle? existing = db.GoogleVideos.FirstOrDefault(g => g.GoogleId == v.GoogleId);
       if (existing is null)
       {
-        Console.WriteLine($"new video from Google: {v.GoogleId}");
+        logger.LogDebug("new video from Google: {id}", v.GoogleId);
         db.Add(v);
       }
       // possibly update the existing google video database record
@@ -84,12 +53,12 @@ class Program
       {
         if (!v.Equals(existing))
         {          
-          Console.WriteLine($"updating google video: {v.GoogleId}");
+          logger.LogDebug("updating google video: {id}", v.GoogleId);
           existing.SyncTo(v);
           db.Update(existing);
         }
       } 
-    });
+    };
     db.SaveChanges();
 
     // Offer to delete records from database if they weren't found on Google Photos
@@ -101,7 +70,7 @@ class Program
       List<VideoFileGoogle> videosNotInGoogle = new List<VideoFileGoogle>();
       foreach (var video in videosInDatabase)
       {
-        if (!googleVideos.Any(v => v.GoogleId == video.GoogleId))
+        if (!newlyScrapedIds.Any(id => id == video.GoogleId))
         {
           videosNotInGoogle.Add(video);
         }
@@ -110,15 +79,15 @@ class Program
       int count = videosNotInGoogle.Count;
       if (count > 0)
       {
-        Console.WriteLine($"Total cases of video present in db but not on google photos: {count}");
+        logger.LogDebug("Total cases of video present in db but not on google photos: {count}", count);
         Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
         string? response = Console.ReadLine();
         if (response?.Equals("Y", StringComparison.OrdinalIgnoreCase) ?? false)
         {
           db.RemoveRange(videosNotInGoogle);
           db.SaveChanges();
-          Console.WriteLine("Deleted videosNotInGoogle from the database.");
-          Console.WriteLine("List of GoogleIds for deleted records:");
+          logger.LogInformation("Deleted videosNotInGoogle from the database.");
+          Console.WriteLine("List of GoogleIds for records just deleted:");
           foreach (var video in videosNotInGoogle)
           {
               Console.WriteLine(video.GoogleId);
@@ -134,16 +103,24 @@ class Program
 
     
     #region LocalVideoFiles
-    Console.WriteLine($"Collecting information about video files in {sourceDir}");
+            
 
-    string? ffmpegPath = currentMachineSettings.FFMpegPath;
+    string? sourceDir = settings.SourceDir; 
+    if (string.IsNullOrEmpty(sourceDir))
+    {
+      Console.WriteLine("appsettings.json needs to define SourceDir under the \"Settings\" key.");
+      Environment.Exit(1);
+    }
+    logger.LogInformation("Collecting information about video files in {sourceDir}", sourceDir);
+
+    string? ffmpegPath = settings.FFMpegPath;
     if (ffmpegPath is not null)
     {
       GlobalFFOptions.Configure(options => options.BinaryFolder = ffmpegPath);
     }
     else
     {
-      Console.WriteLine("No \"FFMpegPath setting\" defined for this machine. ffprobe will not be used to collect video metadata.");
+      logger.LogWarning("No \"FFMpegPath setting\" defined for this machine. ffprobe will not be used to collect video metadata.");
     }
 
 
@@ -155,17 +132,17 @@ class Program
         .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
         .Select(f => Path.GetFullPath(f))
         .ToArray();
-      Console.WriteLine($"Found {filePaths.Length} files on local file system folder {sourceDir}");      
+      logger.LogInformation("Found {count} files on local file system folder {sourceDir}", filePaths.Length, sourceDir);
     }
     else
     {
-      Console.WriteLine($"Directory {sourceDir} does not exist.");
+      logger.LogError("Directory {sourceDir} does not exist.", sourceDir);
     }
 
     // convert files to records
     List<VideoFileWindows> records = [];    
     // Possibly limit how many local video files are examined/saved into database
-    int maxFilesLocal = settings.GetValue<int>("FileLimitLocal");
+    int? maxFilesLocal = settings.FileLimitLocal;
     int i = 0;
     foreach (string filePath in filePaths)
     {
@@ -235,25 +212,73 @@ class Program
       VideoFileWindows? existing = db.WindowsVideos.FirstOrDefault(w => w.Path == r.Path);
       if (existing is null)
       {
-        Console.WriteLine($"new video from local file system {r.Path}");
+        logger.LogDebug("new video from local file system {0}", r.Path);
         db.Add(r);
       }
       else if (!r.Equals(existing))
       {
-        Console.WriteLine($"updating local video: {r.Path}");
+        logger.LogDebug("updating local video: {0}", r.Path);
         existing.SyncTo(r);
         db.Update(existing);
       }
       else
       {
-        Console.WriteLine($"no change to local video: {r.Path}");
+        logger.LogDebug("no change to local video: {0}", r.Path);
       }
     });
     db.SaveChanges();
     #endregion    
   }
 
+  private static IHost CreateHost()
+  {
+    // This does a lot of things like loading configuration, logging, setting up a services host.
+    // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
+    // It will also pull user secrets when in development mode.
+    var builder = Host.CreateDefaultBuilder()
+      .ConfigureServices((hostContext, services) =>
+      {
+        services.AddSingleton<VideoContext>();
+        
+        var config = hostContext.Configuration;
+        var settings = new Settings();
+        config.GetSection("Settings").Bind(settings);
 
+        // load machine-specific settings from the "MachineSettings" key of appsettings*.json
+        // To allow case-insensitive matching, we'll have to loop over the keys in the MachineSetting section
+        string machineName = System.Net.Dns.GetHostName();
+        bool foundMachineSpecificSettings = false;
+        foreach (var section in config.GetSection("MachineSettings").GetChildren())
+        {     
+          if (string.Compare(section.Key, machineName, StringComparison.OrdinalIgnoreCase) == 0)
+          {
+            section.Bind(settings);
+            foundMachineSpecificSettings = true;
+            break;
+          }
+        }
+        if (!foundMachineSpecificSettings)
+        {
+          Console.WriteLine($"No MachineSettings defined in appsettings.json for machine {machineName}");
+          Environment.Exit(1);
+        }
+
+        services.AddSingleton(settings);
+
+        // We need the same http client to be used by GoogleConnector and GooglePhotosService
+        // so that GoogleConnector can do the login and set the authorization headers for GooglePhotosService to use.        
+        services.AddSingleton<HttpClient>(new HttpClient()
+        {
+          BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
+        });
+        services.AddSingleton<GoogleConnector>();
+        // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
+        // give the GooglePhotosService a new http client but we need it to share one with GoogleConnector
+        services.AddSingleton<CasCap.Services.GooglePhotosService>();
+
+      });
+    return builder.Build();
+  }
   public async static Task SomethingElse()
   {  
     GlobalFFOptions.Configure(options => options.BinaryFolder = "c:/ffmpeg/bin");

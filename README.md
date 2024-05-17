@@ -17,19 +17,20 @@ There are 3 projects here:
 | **vidprobe** | Scans local filesystem for videos and connects to GP API to get its videos. Stores newly discovered videos into database. Update existing records. Offers to delete record from db if no longer present in GP |  
 
 ## Database
-### GoogleVideos
+### Table: GoogleVideos
 Primary key is ID used by REST API (the one vidprobe connects to).  
 Has columns for DurationMs (raw), Duration (human-readable), and Size but I think that's a mistake.
-### WindowsVideos
+### Table: WindowsVideos
 Primary key is full path to video.
-### GoogleVideosMetadataFromChrome
+### Table: GoogleVideosMetadataFromChrome
 Primary key is ID used by the batchExecute RPC Api (the one you'd use from a web browser on the GP website).
 This has columns for DurationMs, and Size. I believe the intention is to keep this stuff only in this table and join GoogleVideos table against this table when you want that stuff.
 
 ## Prerequisites
 - relies on ffprobe.exe which is part of the ffmpeg distribution. So install ffmpeg and then set `FFMpegPath` in the application`{environment}`.json file.
-- app needs to be registered on Google cloud console as a "UWP" app. After obtaining client id, store this as a dotnet user secret using `dotnet user-secrets set "GoogleAPI:client_id" "your client id"`. This should be done from inside the `vidprobe` sub directory.   
-The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
+- app needs to be registered on Google cloud console as a "UWP" app. After obtaining client id, store this in the application`{environment}`.json file as `GoogleClientId`.  
+
+  The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
 ## Configuration
 - **VidCommon** Uses CommonSetting.json to define database file as `DbFileName`
 - **jsonToDb** Hardcoded to look at `GoogleVideosMetadata.json` for the JSON containing GP video filesizes and `GoogleVideosDurations.json` for the GP video durations and `RestToRpc.json` for mapping between 2 different ID schemes GP uses (more later).
@@ -38,7 +39,8 @@ The application was registered on google's cloud console and issued a client id.
   "Settings": {  
     "FileLimitLocal": 1,  
     "PageLimitGoogle": 1,  
-    "FreshDatabase": false  
+    "FreshDatabase": false,
+    "GoogleClientId": "your-client-id-here"
   },  
   "Logging": {  
     "LogLevel": {  
@@ -62,6 +64,7 @@ The application was registered on google's cloud console and issued a client id.
   | FileLimitLocal | how many local video files to process| 
   | PageLimitGoogle | how many pages of GP videos to query |
   | FreshDatabase | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when program starts. Note that the GoogleVideosMetadataFromChrome table (populated by jsonToDb) is unaffected | 
+  | GoogleClientId | client id issued after registering app on Google Cloud Console|
   | SourceDir |  local folder in which to look (subdirectories will be included)|
   | FFMpegPath | Location of ffmpeg (more importantly ffprobe) executable|
   
@@ -86,4 +89,11 @@ The batchExecute RPC system refers to videos by an ID that is not the same as ho
 
 ### But again, I don't see anything in the GPTK script that will capture the video filesizes or the RPC-to-REST ID mapping.
 
+# Weirdness
+The GooglePhotosService from the CasCap.Apis.GooglePhotos library has to share the exact same HttpClient instance as is used by my GoogleConnector service. This is because GoogleConnector needs to perform the authorization to Google and when the authorization succeeds it needs to store an Authorization header as part of the HttpClient's default headers.  
+The reason GoogleConnector needs to perform the authorization is that the GooglePhotosService insists on there being a client secret. As stated before, we are trying to rely only on PKCE and we are not sending any client secret nor storing any client secret in the app.
 
+# TODO
+- Figure out if metadata from chrome is supposed to be its own table and if so, then why does GoogleVideos table have columns that duplicate what's in metadata from chrome table. What are implications on model classes and EF serialization?
+- document how to run from command line including passing arguments, setting Development/Production environment variable.
+- nothing is populating GoogleVideos "URL" column.
