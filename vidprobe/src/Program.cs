@@ -54,8 +54,9 @@ class Program
         if (!v.Equals(existing))
         {          
           logger.LogDebug("updating google video: {id}", v.GoogleId);
-          existing.SyncTo(v);
-          db.Update(existing);
+          // copies all possible fields that come back from the REST API into existing record
+          // (but leaves other fields, like Size and Duration, alone)
+          existing.SyncToRestAPIResult(v);
         }
       } 
     };
@@ -67,7 +68,7 @@ class Program
     {
       // Check all videos in googleVideos table to see if any were not found by Google Photos API
       var videosInDatabase = db.GoogleVideos.ToList();
-      List<VideoFileGoogle> videosNotInGoogle = new List<VideoFileGoogle>();
+      List<VideoFileGoogle> videosNotInGoogle = [];
       foreach (var video in videosInDatabase)
       {
         if (!newlyScrapedIds.Any(id => id == video.GoogleId))
@@ -102,9 +103,7 @@ class Program
 
 
     
-    #region LocalVideoFiles
-            
-
+    #region LocalVideoFiles          
     string? sourceDir = settings.SourceDir; 
     if (string.IsNullOrEmpty(sourceDir))
     {
@@ -122,7 +121,6 @@ class Program
     {
       logger.LogWarning("No \"FFMpegPath setting\" defined for this machine. ffprobe will not be used to collect video metadata.");
     }
-
 
     // Collect video files from local file system
     string[] filePaths = [];
@@ -212,18 +210,18 @@ class Program
       VideoFileWindows? existing = db.WindowsVideos.FirstOrDefault(w => w.Path == r.Path);
       if (existing is null)
       {
-        logger.LogDebug("new video from local file system {0}", r.Path);
+        logger.LogDebug("new video from local file system {filepath}", r.Path);
         db.Add(r);
       }
       else if (!r.Equals(existing))
       {
-        logger.LogDebug("updating local video: {0}", r.Path);
+        logger.LogDebug("updating local video: {filepath}", r.Path);
         existing.SyncTo(r);
         db.Update(existing);
       }
       else
       {
-        logger.LogDebug("no change to local video: {0}", r.Path);
+        logger.LogDebug("no change to local video: {filepath}", r.Path);
       }
     });
     db.SaveChanges();
@@ -262,7 +260,6 @@ class Program
           Console.WriteLine($"No MachineSettings defined in appsettings.json for machine {machineName}");
           Environment.Exit(1);
         }
-
         services.AddSingleton(settings);
 
         // We need the same http client to be used by GoogleConnector and GooglePhotosService

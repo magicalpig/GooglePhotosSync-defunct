@@ -8,7 +8,6 @@ public class VideoContext : DbContext
 {
   public DbSet<VideoFileGoogle> GoogleVideos { get; set; }
   public DbSet<VideoFileWindows> WindowsVideos { get; set; }
-  public DbSet<VideoMetadataFromChrome> VideoMetadataFromChrome { get; set; }
 
   public string DbPath { get; }
 

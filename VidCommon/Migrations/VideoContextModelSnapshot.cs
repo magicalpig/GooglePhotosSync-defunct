@@ -28,16 +28,19 @@ namespace VidCommon.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
-                    b.Property<TimeSpan>("Duration")
+                    b.Property<TimeSpan?>("Duration")
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("DurationMs")
+                    b.Property<long?>("DurationMs")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("Size")
+                    b.Property<string>("RPCId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("URL")
@@ -59,10 +62,10 @@ namespace VidCommon.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
-                    b.Property<TimeSpan>("Duration")
+                    b.Property<TimeSpan?>("Duration")
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("DurationMs")
+                    b.Property<long?>("DurationMs")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Folder")
@@ -72,34 +75,12 @@ namespace VidCommon.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("Size")
+                    b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Path");
 
                     b.ToTable("WindowsVideos");
-                });
-
-            modelBuilder.Entity("VidCommon.Models.VideoMetadataFromChrome", b =>
-                {
-                    b.Property<string>("ProductId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("DurationMs")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Filename")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("Filesize")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("RestId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("ProductId");
-
-                    b.ToTable("GoogleVideosMetadataFromChrome");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,9 +6,27 @@ namespace VidCommon.Models;
 [Table("GoogleVideos")]
 public class VideoFileGoogle : VideoFileBase
 { 
+  private static readonly string ShortUrlBase = "https://photos.google.com/photo/";
+
   [Key]
-  public string GoogleId { get; set; } = String.Empty;
-  public string? URL { get; set; }
+  public required string GoogleId { get; set; }
+
+  // only gets set when setting RPCId
+  [NotFromGoogleRestAPI]
+  public string? URL { get; private set; }
+
+  // this is the ID used in browser when calling the batchExecute RPC API
+  private string? _rpcId;
+  [NotFromGoogleRestAPI]
+  public string? RPCId 
+  { 
+    get { return _rpcId; }
+    set {
+      _rpcId = value;
+      URL = ShortUrlBase + value;
+    }
+  }
+
 
   public override bool Equals(object? obj)
   {
@@ -29,10 +47,19 @@ public class VideoFileGoogle : VideoFileBase
     return HashCode.Combine(base.GetHashCode(), GoogleId, URL);
   }
 
-  public void SyncTo(VideoFileGoogle other)
+  // video instance pulled from REST API will not have certain properties that
+  // can only come from JSON files (jsonToDb project). 
+  public void SyncToRestAPIResult(VideoFileGoogle other)
   {
-    base.SyncTo(other);
-    URL = other.URL;
+    // skip attempting to sync any properties that are not from the Google REST API
+    // Do not overwritem properties that come from JSON files.
+    var propsToUpdate = GetType().GetProperties()
+      .Where(p => !Attribute.IsDefined(p, typeof(NotFromGoogleRestAPIAttribute)));
+    
+    foreach (var prop in propsToUpdate)
+    {
+      prop.SetValue(this, prop.GetValue(other));
+    }
   }
 }
 

@@ -1,8 +1,38 @@
 namespace VidCommon.Models;
+// For google videos, this attribute tells us taht the REST API
+// does not return a particular property.
+[AttributeUsage(AttributeTargets.Property)]
+public class NotFromGoogleRestAPIAttribute : Attribute
+{
+}
 
 public abstract class VideoFileBase
 {
   public string? Name { get; set; } = String.Empty;
+  public string? Description { get; set; }
+  [NotFromGoogleRestAPI]
+  public long? Size { get; set; }
+  
+  // this does not get set directly. It gets set when you set the milliseconds version
+  [NotFromGoogleRestAPI]
+  public TimeSpan? Duration { get; private set; }
+  private long? _durationMs;
+  [NotFromGoogleRestAPI]
+  public long? DurationMs
+  {
+    get { return _durationMs; }
+    set
+    {
+      // setting DurationMs directly would result in infinite recursion
+      if (value.HasValue)
+      {
+        long nonNullValue = value.Value;
+        _durationMs = nonNullValue;
+        Duration = TimeSpan.FromMilliseconds(nonNullValue - nonNullValue % 1000);
+      }
+    }
+  }
+
   private DateTime? _createdDate;
   public DateTime? CreatedDate
   {
@@ -13,48 +43,29 @@ public abstract class VideoFileBase
       if (value.HasValue)
       {
         DateTime d = value.Value;
-        long ms = d.Millisecond;
-        if (ms > 0)
-          d = new DateTime(d.Year, d.Month, d.Day, d.Hour, d.Minute, d.Second, 0, d.Kind);
+        // clear milliseconds off date stamp
+        d = new DateTime(d.Year, d.Month, d.Day, d.Hour, d.Minute, d.Second, 0, d.Kind);
         _createdDate = d;
       }
       else
-      {
         _createdDate = null;
-      }
     }
   }
-  public string? Description { get; set; } = String.Empty;
-  // this does not get set directly. It gets set when you set the milliseconds version
-  public TimeSpan Duration { get; private set; } = new TimeSpan(0);
+  
 
-  private long _durationMs;
-  public long DurationMs
-  {
-    get { return _durationMs; }
-    set
-    {
-      // setting DurationMs directly would result in infinite recursion
-      _durationMs = value;
-      Duration = TimeSpan.FromMilliseconds(value - value % 1000);
-    }
-  }
-  public long Size { get; set; } = 0;
+  
   public override bool Equals(object? obj)
   {
     if (obj == null || GetType() != obj.GetType())
-    {
       return false;
-    }
 
     VideoFileBase other = (VideoFileBase)obj;
-
     return Name == other.Name &&
-         CreatedDate == other.CreatedDate &&
-         Description == other.Description &&
-         Duration == other.Duration &&
-         DurationMs == other.DurationMs &&
-         Size == other.Size;
+      CreatedDate == other.CreatedDate &&
+      Description == other.Description &&
+      Duration == other.Duration &&
+      DurationMs == other.DurationMs &&
+      Size == other.Size;
   }
 
   protected void SyncTo(VideoFileBase other)
@@ -66,6 +77,7 @@ public abstract class VideoFileBase
     DurationMs = other.DurationMs;
     Size = other.Size;
   }
+
   public override int GetHashCode()
   {
     return HashCode.Combine(Name, CreatedDate, Description, Duration, Size);

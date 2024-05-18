@@ -18,13 +18,10 @@ There are 3 projects here:
 
 ## Database
 ### Table: GoogleVideos
-Primary key is ID used by REST API (the one vidprobe connects to).  
-Has columns for DurationMs (raw), Duration (human-readable), and Size but I think that's a mistake.
+Primary key is ID used by REST API (the one vidprobe connects to). Some of the data comes from the REST API (running vidprobe) while some of it comes from JSON files obtained through the browser using the batchExecute RPC API (you get this data into the db by running jsonToDb).
+
 ### Table: WindowsVideos
 Primary key is full path to video.
-### Table: GoogleVideosMetadataFromChrome
-Primary key is ID used by the batchExecute RPC Api (the one you'd use from a web browser on the GP website).
-This has columns for DurationMs, and Size. I believe the intention is to keep this stuff only in this table and join GoogleVideos table against this table when you want that stuff.
 
 ## Prerequisites
 - relies on ffprobe.exe which is part of the ffmpeg distribution. So install ffmpeg and then set `FFMpegPath` in the application`{environment}`.json file.
@@ -63,7 +60,7 @@ This has columns for DurationMs, and Size. I believe the intention is to keep th
   | --- | --- |
   | FileLimitLocal | how many local video files to process| 
   | PageLimitGoogle | how many pages of GP videos to query |
-  | FreshDatabase | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when program starts. Note that the GoogleVideosMetadataFromChrome table (populated by jsonToDb) is unaffected | 
+  | FreshDatabase | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when program starts | 
   | GoogleClientId | client id issued after registering app on Google Cloud Console|
   | SourceDir |  local folder in which to look (subdirectories will be included)|
   | FFMpegPath | Location of ffmpeg (more importantly ffprobe) executable|
@@ -97,3 +94,4 @@ The reason GoogleConnector needs to perform the authorization is that the Google
 - Figure out if metadata from chrome is supposed to be its own table and if so, then why does GoogleVideos table have columns that duplicate what's in metadata from chrome table. What are implications on model classes and EF serialization?
 - document how to run from command line including passing arguments, setting Development/Production environment variable.
 - nothing is populating GoogleVideos "URL" column.
+
