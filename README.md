@@ -8,13 +8,21 @@ The purpose of this app is to identify
 - find videos on GP or locally that have same name
 - review metadata that might need correcting.
 
+## Usage Notes
+Much of the metadata about Google Videos can be scraped from its REST API. The `vidprobe` project does that. It identifies videos by what we call the REST ID. These are about 98 (or maybe exactly?) characters long.  
+This technique does not give us the size or duration of the videos. To get this, we need to use our web browsers to interact with the Google Photos website. We run Tampermonkey to make the gptk.js script available within the browser. I have modified this script so it has a "Scrape Videos" action.  
+Scrape Videos will invoke Google's "batchExecute" RPC API. Following these invocations, the browser will have information about the videos' duration and size.   
+The custom userscript running in Tampermonkey will then post these videos to our WebHelper web server. My plan is to have the WebHelper insert these videos into these database or update records that are already there. The problem I'm facing now is that the RPC calls assign a different type of ID to each video. These are only 43 characters long. I need a way to map the IDs from the RPC calls to the IDs from the REST calls.  
+What I might do is have the WebHelper respond with some javascript that can be executed. This javascript will make HEAD calls to GooglePhotos for specific videos using the REST ID. I've found that Google will redirect these requests to one that uses the shorter RPC ID.
+
 ## Solution Layout
-There are 3 projects here:  
+There are 4 projects here:  
 | | |
 | --- | --- |
 | **VidCommon** | Establishes the data models and the database connection (DbContext in .NET parlance). Included by the other projects |
 | **jsonToDb** | Takes JSON obtained from a web browser session with Google Photos as a means to add metadata not otherwise obtainable through the GP API. |
-| **vidprobe** | Scans local filesystem for videos and connects to GP API to get its videos. Stores newly discovered videos into database. Update existing records. Offers to delete record from db if no longer present in GP |  
+| **vidprobe** | Scans local filesystem for videos and connects to GP API to get its videos. Stores newly discovered videos into database. Update existing records. Offers to delete record  from db if no longer present in GP |
+| **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. This will eventually replace jsonToDb |
 
 ## Database
 ### Table: GoogleVideos

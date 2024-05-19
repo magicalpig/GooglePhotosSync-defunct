@@ -101,6 +101,7 @@
   <hr>
   <div class="action-bar">
     <div class="action-buttons">
+      <button type="button" id="scrapeVideos" title="Scrape Videos">Scrape Videos</button>
       <button id="showExistingAlbumForm" title="Add To Existing Album">Add To Existing Album</button>
       <button id="showNewAlbumForm" title="Add To New Album">Add To New Album</button>
       <button type="button" id="toTrash" title="Move To Trash">Move to Trash</button>
@@ -814,10 +815,6 @@
 
 
     function libraryItemParse(rawItemData) {
-        let duration = rawItemData?.at(-1)?.[76647426]?.[0];
-        if (duration !== undefined) {
-            window.durations.push([rawItemData?.[0], duration]);
-        }
       return {
         productId: rawItemData?.[0],
         dateTaken: rawItemData?.[2],
@@ -961,7 +958,18 @@
   class Api {
     async makeApiRequest(rpcid, requestData) {
       requestData = [[[rpcid, JSON.stringify(requestData), null, 'generic']]];
-console.log("Making API request with RPC ID " + rpcid);
+        let rpcMap = {
+            'lcxiM': "library timeline page",
+            'nMFwOc': "locked folder page",
+            'EzkLib': "library generic page",
+            'F2A0H': "links page",
+            'Z5xsfc': "albums page",
+            'snAcKc': "album items page",
+            'zy0IHe': "trash page",
+            'EWgK9e': "bulk info"
+        };
+      console.log("Making API request with RPC ID " + rpcid); //#RDA
+      console.log("This correlates to the function " + rpcMap[rpcid]);   // #RDA
       const requestDataString = `f.req=${encodeURIComponent(JSON.stringify(requestData))}&at=${encodeURIComponent(windowGlobalData.at)}&`;
 
       const params = {
@@ -1490,6 +1498,41 @@ console.log("Making API request with RPC ID " + rpcid);
       const mediaInfoData = await this.executeWithConcurrency(this.api.getBatchMediaInfo, null, this.infoSize, productIdList);
       return mediaInfoData;
     }
+
+    async scrapeVideos(mediaItems) {
+      // at this point mediaItems is nice but we're missing the mapping from each video's RPC ID to its REST API ID
+      // What I've done before is made a HEAD call using the REST ID and the redirect includes the RPC ID,
+      // but now I want to go the other way.
+
+      let textarea = document.createElement('textarea');
+      let json = JSON.stringify(mediaItems, null, 2);
+      textarea.value = json;
+      document.body.appendChild(textarea);
+      textarea.select();
+      navigator.clipboard.writeText(textarea.value).then(function() {        
+        log('The JSON is now in your clipboard', 'success');
+      }, function(err) {
+        log('could not put the JSON in your clipboard. Check dev tools for the JSON.. ' + err, 'error');
+        console.log(textarea.value);
+      });
+      document.body.removeChild(textarea);
+
+      fetch('http://localhost:5222/api/SendScrapedVideos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: json
+      })
+      .then(response => {
+        // Handle the response
+        console.log('Response:', response);
+      })
+      .catch(error => {
+        // Handle any errors
+        console.error('Error:', error);
+      });
+    }
   }
 
   function dateToHHMMSS(date) {
@@ -1884,7 +1927,6 @@ console.log("Making API request with RPC ID " + rpcid);
     }
 
     async actionWithFilter(action, filter, source, target, apiSettings) {
-        window.durations = [];
       try{
         this.preChecks(filter);
       }
@@ -1917,6 +1959,7 @@ console.log("Making API request with RPC ID " + rpcid);
           if (action.elementId === 'unArchive') await this.apiUtils.unArchive(mediaItems);
           if (action.elementId === 'toFavorite') await this.apiUtils.setAsFavorite(mediaItems);
           if (action.elementId === 'unFavorite') await this.apiUtils.unFavorite(mediaItems);
+          if (action.elementId === 'scrapeVideos') await this.apiUtils.scrapeVideos(mediaItems);
           log(`Task completed in ${timeToHHMMSS(new Date() - startTime)}`, 'success');
         }
       } catch (error) {
@@ -2186,7 +2229,8 @@ console.log("Making API request with RPC ID " + rpcid);
     { elementId: 'toFavorite' },
     { elementId: 'unFavorite' },
     { elementId: 'lock' },
-    { elementId: 'unLock' }
+    { elementId: 'unLock' },
+    { elementId: 'scrapeVideos' }
   ];
 
   function userConfirmation(action, filter, source) {
@@ -2221,8 +2265,19 @@ console.log("Making API request with RPC ID " + rpcid);
       return;
     }
 
+    if (actionId == 'scrapeVideos') {
+      let f = document.querySelector('.filters-form');
+      f.reset();
+      f.elements["type"].value = "video";
+      // this dummy filter will trigger additional RPC calls to obtain file size
+      f.elements["lowerBoundarySize"].value = 69;
+      updateUI();      
+    }
+
+
     // Parsed filter object
     const filter = getForm('.filters-form');
+    
     // Parsed settings object
     const apiSettings = getForm('.settings-form');
     if (!userConfirmation(action, filter)) return;

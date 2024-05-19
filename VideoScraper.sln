@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vidprobe", "vidprobe\vidpro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "jsonToDb", "jsonToDb\jsonToDb.csproj", "{53DED21F-C050-49AF-88AB-81B82C7BA833}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebHelper", "WebHelper\WebHelper.csproj", "{CE69827A-4B83-4A05-95BF-F709024895A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{53DED21F-C050-49AF-88AB-81B82C7BA833}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{53DED21F-C050-49AF-88AB-81B82C7BA833}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{53DED21F-C050-49AF-88AB-81B82C7BA833}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE69827A-4B83-4A05-95BF-F709024895A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE69827A-4B83-4A05-95BF-F709024895A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE69827A-4B83-4A05-95BF-F709024895A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE69827A-4B83-4A05-95BF-F709024895A8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
