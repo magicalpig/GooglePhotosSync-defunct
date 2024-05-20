@@ -8,11 +8,23 @@
       "group": {
         "kind": "build",
         "isDefault": true
-      },
+      },      
       "presentation": {
         "reveal": "always",
         "panel": "shared",
         "clear": true
+      },
+      "problemMatcher": [],
+    },
+    {
+      "type": "dotnet",
+      "task": "watch WebHelper",
+      "file": "C:\\Users\\Rance\\Coding\\VideoScraper\\WebHelper\\WebHelper.csproj",
+      "problemMatcher": [],
+      "label": "dotnet: watch WebHelper",
+      "group": {
+        "kind": "build",
+        "isDefault": false
       }
     }
   ]

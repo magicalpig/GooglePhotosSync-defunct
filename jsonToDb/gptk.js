@@ -1270,6 +1270,7 @@
     const logPrefix = '[GPTK]';
     // Create a new div for the log message
     const logDiv = document.createElement('div');
+    logDiv.style.whiteSpace = 'pre';
     logDiv.textContent = logMessage;
 
     if(type)logDiv.classList.add(type);
@@ -1499,39 +1500,129 @@
       return mediaInfoData;
     }
 
-    async scrapeVideos(mediaItems) {
-      // at this point mediaItems is nice but we're missing the mapping from each video's RPC ID to its REST API ID
-      // What I've done before is made a HEAD call using the REST ID and the redirect includes the RPC ID,
-      // but now I want to go the other way.
+    async sendToServer(mediaItems) {
+      const confirmMessageFormatter = (count) => `There were ${count} records in the database with no RPC ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to RPC IDs ?`;
 
-      let textarea = document.createElement('textarea');
-      let json = JSON.stringify(mediaItems, null, 2);
-      textarea.value = json;
-      document.body.appendChild(textarea);
-      textarea.select();
-      navigator.clipboard.writeText(textarea.value).then(function() {        
+      // reduce media items to properties we care about and with property names matching the
+      // schema of the WebHelper API's RpcScrapedVideo object.
+      // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
+      let minimalMediaItems = mediaItems.map(item => {
+        return {
+          size: item.size,
+          durationMs: item.duration || item.durationMs,
+          googleId: item.googleId, // would only be present on recursive call to this function, after doing REST ID lookups
+          rpcId: item.productId || item.rpcId
+        }
+      });
+
+
+      let json = JSON.stringify(minimalMediaItems, null, 2);
+      try {
+        await textToClipboard(json);
         log('The JSON is now in your clipboard', 'success');
-      }, function(err) {
+      } catch (err) {
         log('could not put the JSON in your clipboard. Check dev tools for the JSON.. ' + err, 'error');
-        console.log(textarea.value);
-      });
-      document.body.removeChild(textarea);
+        console.log(json);
+      }
+                
+      log('Sending video data to server');
+      let response;
+      try {
+        response = await fetch('http://localhost:5222/api/SendScrapedVideos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: json
+        });
+      } catch (error) {
+        log('Error:' + error.toString(), 'error');
+        throw error;
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+        log('Response:' + JSON.stringify(data, null, 2));
+      } catch (error) {
+        log('Error parsing response JSON:' + error.toString(), 'error');
+        throw error;
+      }
 
-      fetch('http://localhost:5222/api/SendScrapedVideos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: json
-      })
-      .then(response => {
-        // Handle the response
-        console.log('Response:', response);
-      })
-      .catch(error => {
-        // Handle any errors
-        console.error('Error:', error);
-      });
+      
+      // Continue function only if the server's response indicates it has records missing RPC ID.
+      // recordsWithNoRpcId is a list of REST IDs for such database records.
+      if (!data.recordsWithNoRpcId?.length > 0) {
+        if (data.recordsNotFound?.length)
+          alert("Some records could not be updated because there was no match for their RPC ID.\n" +
+            "Normally we'd offer to try to convert REST IDs to RPC IDs for these records, but the server didn't indicate any records were missing RPC ID");
+        return;
+      }
+      const confirmMessage = confirmMessageFormatter(data.recordsWithNoRpcId.length);
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+
+      // of these id mappings are for db records having REST ID but no RPC ID.
+      let idMappings = await this.convertRestIdsToRpcIds(data.recordsWithNoRpcId);            
+      if (Object.keys(idMappings).length > 0) {        
+        let fixedMediaItems = 
+          Object.keys(idMappings).map(rpcId => {
+            const restId = idMappings[rpcId];
+            // try to attach REST ID to media items that failed to update a record on first attempt.
+            // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
+            // but we still want to let the server know of the id mapping 
+            const mediaItem = minimalMediaItems.find(item => item.rpcId === rpcId);
+            return { ...mediaItem, googleId: restId };
+          });
+        // send the fixed media items to the server
+        this.sendToServer(fixedMediaItems);
+      }
+    }
+
+    // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
+    async convertRestIdsToRpcIds(restIds) {
+      log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);      
+      const urlBase = "https://photos.google.com/lr/photo/";
+      let callCount = 0;
+      const newMappings = {};
+      for (let restId of restIds) {
+        if (callCount++ % 5 == 0) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        const url = urlBase + restId;
+        console.log("HEAD call to : " + url);
+        let response;
+        try {
+          response = await fetch(url, {method: 'HEAD'});
+          const newUrl = response.url;
+          const matches = newUrl.match(/\/([^\/]+)$/);
+          if (matches) {
+            const rpcId = matches[1];
+            const shortRestId = restId.slice(0,7) + '...' + restId.slice(-10);
+            log(`REST ID ${shortRestId} maps to RPC ID ${rpcId}`);
+            newMappings[rpcId] = restId;
+          }
+        }
+        catch(error) {
+          log("Error making HEAD request:" + error.toString(), 'error');
+        }
+      }
+      return newMappings;
+    }
+  }
+
+  async function textToClipboard(t) {
+    let textarea = document.createElement('textarea');
+    textarea.value = t;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+    }
+    catch(err) {
+      throw err;
+    }
+    finally {
+      document.body.removeChild(textarea);
     }
   }
 
@@ -1959,7 +2050,7 @@
           if (action.elementId === 'unArchive') await this.apiUtils.unArchive(mediaItems);
           if (action.elementId === 'toFavorite') await this.apiUtils.setAsFavorite(mediaItems);
           if (action.elementId === 'unFavorite') await this.apiUtils.unFavorite(mediaItems);
-          if (action.elementId === 'scrapeVideos') await this.apiUtils.scrapeVideos(mediaItems);
+          if (action.elementId === 'scrapeVideos') await this.apiUtils.sendToServer(mediaItems);
           log(`Task completed in ${timeToHHMMSS(new Date() - startTime)}`, 'success');
         }
       } catch (error) {

@@ -5,15 +5,15 @@
       "name": "Launch webserver",
       "type": "coreclr",
       "request": "launch",
-      "program": "${workspaceFolder}/WebHelper/bin/Debug/net8.0/WebHelper.dll",
+      "program": "${workspaceFolder}/WebHelper/bin/Debug/net8.0-windows/WebHelper.dll",
       "args": [],
       "cwd": "${workspaceFolder}",
       "stopAtEntry": false,
-      "serverReadyAction": {
+      /*"serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
         "uriFormat": "%s/swagger/index.html"
-      },
+      },*/
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5222"

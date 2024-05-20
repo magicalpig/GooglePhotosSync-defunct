@@ -95,7 +95,7 @@ class Program
       
       // RPC ID will be used lookup video duration and size
       var rpcId = idMappingsDict[restId];      
-      videoRecord.RPCId = rpcId;
+      videoRecord.RpcId = rpcId;
       videoRecord.Size = sizesDict.GetValueOrDefault(rpcId);
       videoRecord.DurationMs = durationsDict.GetValueOrDefault(rpcId);
     }

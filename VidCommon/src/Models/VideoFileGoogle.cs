@@ -13,17 +13,17 @@ public class VideoFileGoogle : VideoFileBase
 
   // only gets set when setting RPCId
   [NotFromGoogleRestAPI]
-  public string? URL { get; private set; }
+  public string? Url { get; private set; }
 
   // this is the ID used in browser when calling the batchExecute RPC API
   private string? _rpcId;
   [NotFromGoogleRestAPI]
-  public string? RPCId 
+  public string? RpcId 
   { 
     get { return _rpcId; }
     set {
       _rpcId = value;
-      URL = ShortUrlBase + value;
+      Url = ShortUrlBase + value;
     }
   }
 
@@ -39,12 +39,12 @@ public class VideoFileGoogle : VideoFileBase
 
     return base.Equals(obj) &&
          GoogleId == other.GoogleId &&
-         URL == other.URL;
+         Url == other.Url;
   }
 
   public override int GetHashCode()
   {
-    return HashCode.Combine(base.GetHashCode(), GoogleId, URL);
+    return HashCode.Combine(base.GetHashCode(), GoogleId, Url);
   }
 
   // video instance pulled from REST API will not have certain properties that
@@ -75,6 +75,6 @@ public sealed class VideoFileGoogleMap : ClassMap<VideoFileGoogle>
     Map(m => m.Duration).Index(4).Name("Google Duration ms");
     Map(m => m.Size).Index(5).Name("Google Size");
     Map(m => m.GoogleId).Index(6).Name("Google Id");
-    Map(m => m.URL).Index(7).Name("Google URL");
+    Map(m => m.Url).Index(7).Name("Google URL");
   }
 }
