@@ -3,11 +3,11 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using VidCommon;
+using VideoDataAccess;
 
 #nullable disable
 
-namespace VidCommon.Migrations
+namespace VideoDataAccess.Migrations
 {
     [DbContext(typeof(VideoContext))]
     partial class VideoContextModelSnapshot : ModelSnapshot
@@ -17,7 +17,7 @@ namespace VidCommon.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
 
-            modelBuilder.Entity("VidCommon.Models.VideoFileGoogle", b =>
+            modelBuilder.Entity("VideoDataAccess.Models.VideoFileGoogle", b =>
                 {
                     b.Property<string>("GoogleId")
                         .HasColumnType("TEXT");
@@ -51,7 +51,7 @@ namespace VidCommon.Migrations
                     b.ToTable("GoogleVideos");
                 });
 
-            modelBuilder.Entity("VidCommon.Models.VideoFileWindows", b =>
+            modelBuilder.Entity("VideoDataAccess.Models.VideoFileWindows", b =>
                 {
                     b.Property<string>("Path")
                         .HasColumnType("TEXT");

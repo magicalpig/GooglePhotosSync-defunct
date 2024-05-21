@@ -1,8 +1,8 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using VidCommon.Models;
-namespace VidCommon;
+using VideoDataAccess.Models;
+namespace VideoDataAccess;
 
 public class VideoContext : DbContext
 {

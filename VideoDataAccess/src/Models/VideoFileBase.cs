@@ -1,4 +1,4 @@
-namespace VidCommon.Models;
+namespace VideoDataAccess.Models;
 // For google videos, this attribute tells us taht the REST API
 // does not return a particular property.
 [AttributeUsage(AttributeTargets.Property)]

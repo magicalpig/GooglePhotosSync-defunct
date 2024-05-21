@@ -1,4 +1,4 @@
-namespace VidCommon.Models;
+namespace VideoDataAccess.Models;
 
 using CsvHelper.Configuration;
 using CsvHelper.Configuration.Attributes;

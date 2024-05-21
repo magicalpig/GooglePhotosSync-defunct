@@ -7,8 +7,8 @@
 using Microsoft.Extensions.Logging;
 using CasCap.Models;
 using CasCap.Services;
-using VidCommon;
-using VidCommon.Models;
+using VideoDataAccess;
+using VideoDataAccess.Models;
 using Google.Apis.Auth.OAuth2;
 using System.Net.Http.Headers;
 

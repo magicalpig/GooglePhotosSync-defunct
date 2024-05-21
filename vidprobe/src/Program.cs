@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using VidCommon;
-using VidCommon.Models;
+using VideoDataAccess;
+using VideoDataAccess.Models;
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Data;
 

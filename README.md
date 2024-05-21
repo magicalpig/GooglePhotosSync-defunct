@@ -19,7 +19,7 @@ What I might do is have the WebHelper respond with some javascript that can be e
 There are 4 projects here:  
 | | |
 | --- | --- |
-| **VidCommon** | Establishes the data models and the database connection (DbContext in .NET parlance). Included by the other projects |
+| **VideoDataAccess** | Establishes the data models and the database connection (DbContext in .NET parlance). Included by the other projects |
 | **jsonToDb** | Takes JSON obtained from a web browser session with Google Photos as a means to add metadata not otherwise obtainable through the GP API. |
 | **vidprobe** | Scans local filesystem for videos and connects to GP API to get its videos. Stores newly discovered videos into database. Update existing records. Offers to delete record  from db if no longer present in GP |
 | **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. This will eventually replace jsonToDb |
@@ -37,7 +37,7 @@ Primary key is full path to video.
 
   The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
 ## Configuration
-- **VidCommon** Uses CommonSetting.json to define database file as `DbFileName`
+- **VideoDataAccess** Uses CommonSetting.json to define database file as `DbFileName`
 - **jsonToDb** Hardcoded to look at `GoogleVideosMetadata.json` for the JSON containing GP video filesizes and `GoogleVideosDurations.json` for the GP video durations and `RestToRpc.json` for mapping between 2 different ID schemes GP uses (more later).
 - **vidprobe** Example:
 ```json{

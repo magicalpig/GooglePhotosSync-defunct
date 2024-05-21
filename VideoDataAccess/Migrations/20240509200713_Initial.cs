@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace VidCommon.Migrations
+namespace VideoDataAccess.Migrations
 {
     /// <inheritdoc />
     public partial class Initial : Migration

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CsvHelper.Configuration;
-namespace VidCommon.Models;
+namespace VideoDataAccess.Models;
 
 [Table("WindowsVideos")]
 public class VideoFileWindows : VideoFileBase

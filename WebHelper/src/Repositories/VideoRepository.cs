@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using VidCommon;
-using VidCommon.Models;
 using WebHelper.Models;
+using VideoDataAccess;
+using VideoDataAccess.Models;
+
 namespace WebHelper.Repositories;
 
 public enum UpdateResultCode
