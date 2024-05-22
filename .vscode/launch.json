@@ -7,7 +7,6 @@
       "request": "launch",
       "program": "${workspaceFolder}/WebHelper/bin/Debug/net8.0-windows/WebHelper.dll",
       "args": [],
-      "cwd": "${workspaceFolder}",
       "stopAtEntry": false,
       /*"serverReadyAction": {
         "action": "openExternally",
@@ -25,10 +24,10 @@
     {
       "name": "Launch Vidprobe",
       "type": "coreclr",
-      "request": "launch",      
+      "request": "launch",
+      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
       "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/vidprobe",
       "stopAtEntry": false,
       "console": "internalConsole",
       "internalConsoleOptions": "openOnSessionStart",
@@ -46,35 +45,15 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
+      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
       "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/vidprobe",
+      "args": [],      
       "stopAtEntry": false,
       "console": "internalConsole",
       "internalConsoleOptions": "openOnSessionStart",
       "logging": {
         "moduleLoad": false,
         "trace": "verbose"
-      },
-      "env": {
-        "DOTNET_ENVIRONMENT": "Development"
-      },
-      "justMyCode": false
-    },
-    {
-      "name": "Build and Launch jsonToDb",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/jsonToDb/bin/Debug/net8.0-windows/jsonToDb.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/jsonToDb",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "internalConsoleOptions": "openOnSessionStart",
-      "logging": {
-        "moduleLoad": false,
-        "trace": true
       },
       "env": {
         "DOTNET_ENVIRONMENT": "Development"

@@ -1,4 +1,4 @@
-using VideoDataAccess;
+using VideoDataAccess.Services;
 using WebHelper.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);

@@ -7,21 +7,20 @@
 using Microsoft.Extensions.Logging;
 using CasCap.Models;
 using CasCap.Services;
-using VideoDataAccess;
+using VideoDataAccess.Services;
 using VideoDataAccess.Models;
 using Google.Apis.Auth.OAuth2;
 using System.Net.Http.Headers;
 
 namespace VidProbe;
 
-public class GoogleConnector(Settings settings, VideoContext dbIn, ILogger<GoogleConnector> logger, HttpClient sharedClient, GooglePhotosService service)
+public class GoogleConnector(Settings settings, ILogger<GoogleConnector> logger, HttpClient sharedClient, GooglePhotosService service)
 {  
   private static readonly Filter _videoOnlyFilter = new()
   {
     mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] }
   };
 
-  private readonly VideoContext _db = dbIn;
   private readonly Settings _settings = settings;
   private readonly ILogger<GoogleConnector> _logger = logger;
   private readonly HttpClient _sharedClient = sharedClient;
@@ -75,7 +74,8 @@ public class GoogleConnector(Settings settings, VideoContext dbIn, ILogger<Googl
     await foreach(var m in mediaItems) 
     {
       _logger.LogDebug("Processing Google media item {mediaItemId}", m.id);
-      var v = new VideoFileGoogle(){
+      var v = new VideoFileGoogle()
+      {
         GoogleId = m.id,
         Name = m.filename,
         CreatedDate = m.mediaMetadata.creationTime.ToLocalTime(),

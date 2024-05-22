@@ -1,0 +1,13 @@
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Logging;
+
+namespace VideoDataAccess.Services;
+
+public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoContext>
+{
+  public VideoContext CreateDbContext(string[] args)
+  {
+    var logger = new Logger<VideoContext>(new LoggerFactory());
+    return new VideoContextFactory(logger).CreateVideoContext();
+  }
+}

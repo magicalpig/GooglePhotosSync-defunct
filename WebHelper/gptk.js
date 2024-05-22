@@ -1528,7 +1528,7 @@
       log('Sending video data to server');
       let response;
       try {
-        response = await fetch('http://localhost:5222/api/SendScrapedVideos', {
+        response = await fetch('http://localhost:5222/api/RpcScrapedVideos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: json

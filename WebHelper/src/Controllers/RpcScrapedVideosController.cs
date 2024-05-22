@@ -4,7 +4,7 @@ using WebHelper.Repositories;
 
 namespace WebHelper.Controllers;
 [Route("api/[controller]")]
-public class SendScrapedVideosController(VideoRepository rep) : ControllerBase
+public class RpcScrapedVideosController(VideoRepository rep) : ControllerBase
 {
   private readonly VideoRepository VideoRepository = rep;
   [HttpPost]

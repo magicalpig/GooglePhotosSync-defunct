@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WebHelper.Models;
-using VideoDataAccess;
+using VideoDataAccess.Services;
 using VideoDataAccess.Models;
 
 namespace WebHelper.Repositories;

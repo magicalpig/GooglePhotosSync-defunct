@@ -1,5 +1,5 @@
 namespace VideoDataAccess.Models;
-// For google videos, this attribute tells us taht the REST API
+// For google videos, this attribute tells us that the REST API
 // does not return a particular property.
 [AttributeUsage(AttributeTargets.Property)]
 public class NotFromGoogleRestAPIAttribute : Attribute
@@ -8,6 +8,8 @@ public class NotFromGoogleRestAPIAttribute : Attribute
 
 public abstract class VideoFileBase
 {
+  [NotFromGoogleRestAPI]
+  public string? UserId { get; internal set; }  // to be set by an ICurrentUserService class
   public string? Name { get; set; } = String.Empty;
   public string? Description { get; set; }
   [NotFromGoogleRestAPI]

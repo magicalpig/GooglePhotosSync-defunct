@@ -47,12 +47,10 @@ public class VideoFileGoogle : VideoFileBase
     return HashCode.Combine(base.GetHashCode(), GoogleId, Url);
   }
 
-  // video instance pulled from REST API will not have certain properties that
-  // can only come from JSON files (jsonToDb project). 
+  // for updating a google video record with data pulled from the REST API
   public void SyncToRestAPIResult(VideoFileGoogle other)
   {
-    // skip attempting to sync any properties that are not from the Google REST API
-    // Do not overwritem properties that come from JSON files.
+    // skip attempting to sync any properties that are not from the Google REST API    
     var propsToUpdate = GetType().GetProperties()
       .Where(p => !Attribute.IsDefined(p, typeof(NotFromGoogleRestAPIAttribute)));
     

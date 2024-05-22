@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using VideoDataAccess;
+using VideoDataAccess.Services;
 using VideoDataAccess.Models;
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Data;
@@ -16,15 +16,14 @@ class Program
   {
     var host = CreateHost();
 
-    var db = host.Services.GetRequiredService<VideoContext>();
+    var db = host.Services.GetRequiredService<IVideoService>();
     var config = host.Services.GetRequiredService<IConfiguration>();
     var settings = host.Services.GetRequiredService<Settings>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
     if (settings.FreshDatabase)
     {
       logger.LogInformation("Per the FreshDatabase setting, clearing out any existing records from Google videos and Windows videos database tables");
-      db.WindowsVideos.RemoveRange(db.WindowsVideos);      
-      db.GoogleVideos.RemoveRange(db.GoogleVideos);
+      db.RemoveAllVideos();
     }
     
     // Videos from Google
@@ -42,7 +41,7 @@ class Program
     List<string> newlyScrapedIds = [];
     await foreach (var v in google.ScrapeVideos(pageLimit))
     {
-      VideoFileGoogle? existing = db.GoogleVideos.FirstOrDefault(g => g.GoogleId == v.GoogleId);
+      VideoFileGoogle? existing = db.GetGoogleVideos().FirstOrDefault(g => g.GoogleId == v.GoogleId);
       if (existing is null)
       {
         logger.LogDebug("new video from Google: {id}", v.GoogleId);
@@ -67,7 +66,7 @@ class Program
     if (pageLimit is null)
     {
       // Check all videos in googleVideos table to see if any were not found by Google Photos API
-      var videosInDatabase = db.GoogleVideos.ToList();
+      var videosInDatabase = db.GetGoogleVideos().ToList();
       List<VideoFileGoogle> videosNotInGoogle = [];
       foreach (var video in videosInDatabase)
       {
@@ -207,7 +206,7 @@ class Program
     
     records.ForEach(r =>
     {
-      VideoFileWindows? existing = db.WindowsVideos.FirstOrDefault(w => w.Path == r.Path);
+      VideoFileWindows? existing = db.GetWindowsVideos().FirstOrDefault(w => w.Path == r.Path);
       if (existing is null)
       {
         logger.LogDebug("new video from local file system {filepath}", r.Path);
@@ -235,10 +234,23 @@ class Program
     // It will also pull user secrets when in development mode.
     var builder = Host.CreateDefaultBuilder()
       .ConfigureServices((hostContext, services) =>
-      {
-        services.AddSingleton<VideoContext>();
+      {        
+        services.AddUserScopedVideoService<GoogleApiCurrentUserService>();
         
         var config = hostContext.Configuration;
+        
+        if (hostContext.HostingEnvironment.IsDevelopment())
+        {
+          Console.WriteLine($"Current directory: {Environment.CurrentDirectory}");
+          var environment = hostContext.HostingEnvironment.EnvironmentName;
+          Console.WriteLine($"Current environment: {environment}");
+          Console.WriteLine("Loaded configuration:");
+          foreach (var pair in config.AsEnumerable())
+          {
+            Console.WriteLine($"{pair.Key}: {pair.Value}");
+          }
+        }
+        
         var settings = new Settings();
         config.GetSection("Settings").Bind(settings);
 
@@ -257,7 +269,7 @@ class Program
         }
         if (!foundMachineSpecificSettings)
         {
-          Console.WriteLine($"No MachineSettings defined in appsettings.json for machine {machineName}");
+          Console.WriteLine($"No MachineSettings defined in appsettings{{Environment}}.json for machine {machineName}");
           Environment.Exit(1);
         }
         services.AddSingleton(settings);

@@ -3,7 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using VideoDataAccess;
+using VideoDataAccess.Services;
 
 #nullable disable
 
@@ -37,13 +37,16 @@ namespace VideoDataAccess.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("RPCId")
+                    b.Property<string>("RpcId")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("URL")
+                    b.Property<string>("Url")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("GoogleId");
@@ -77,6 +80,9 @@ namespace VideoDataAccess.Migrations
 
                     b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Path");
 
