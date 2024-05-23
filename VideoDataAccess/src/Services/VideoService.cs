@@ -11,7 +11,7 @@ public class VideoService(VideoContextFactory contextFactory) : IVideoService
 
   private IQueryable<T> GetVideos<T>(string? userId = null) where T : VideoFileBase
   {
-    return _context.Set<T>().Where(v => userId == null || v.UserId == userId);
+    return _context.Set<T>().Where(v => userId == null || v.Owner == userId);
   }
   public virtual IQueryable<VideoFileGoogle> GetGoogleVideos(string? userId = null)
   {
@@ -28,7 +28,7 @@ public class VideoService(VideoContextFactory contextFactory) : IVideoService
     // or set user id property on the videos before removing them
     if (userId is not null)
     {
-      videos = videos.Where(v => v.UserId == userId);
+      videos = videos.Where(v => v.Owner == userId);
     }
     _context.RemoveRange(videos);
     _context.SaveChanges();
@@ -44,7 +44,7 @@ public class VideoService(VideoContextFactory contextFactory) : IVideoService
   {
     if (userId != null)
     {
-      video.UserId = userId;
+      video.Owner = userId;
     }
     _context.Add(video);
   }
@@ -53,7 +53,7 @@ public class VideoService(VideoContextFactory contextFactory) : IVideoService
   {
     if (userId != null)
     {
-      video.UserId = userId;
+      video.Owner = userId;
     }
     _context.Update(video);
   }

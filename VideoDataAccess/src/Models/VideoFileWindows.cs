@@ -6,7 +6,6 @@ namespace VideoDataAccess.Models;
 [Table("WindowsVideos")]
 public class VideoFileWindows : VideoFileBase
 {  
-  [Key]
   public string Path { get; set; } = String.Empty;
   public string Folder { get; set; } = String.Empty;
   public void SyncTo(VideoFileWindows other)

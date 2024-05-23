@@ -9,7 +9,7 @@ public class NotFromGoogleRestAPIAttribute : Attribute
 public abstract class VideoFileBase
 {
   [NotFromGoogleRestAPI]
-  public string? UserId { get; internal set; }  // to be set by an ICurrentUserService class
+  public string? Owner { get; internal set; }  // to be set by an ICurrentUserService class
   public string? Name { get; set; } = String.Empty;
   public string? Description { get; set; }
   [NotFromGoogleRestAPI]

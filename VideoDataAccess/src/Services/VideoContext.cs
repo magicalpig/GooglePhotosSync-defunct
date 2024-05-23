@@ -21,4 +21,12 @@ public class VideoContext : DbContext
   {
     options.UseSqlite(_connectionString);
   }
+
+  protected override void OnModelCreating(ModelBuilder modelBuilder)
+  {
+    modelBuilder.Entity<VideoFileWindows>()
+      .HasKey(v => new { v.Path, v.Owner });
+    modelBuilder.Entity<VideoFileGoogle>()
+      .HasKey(v => new { v.GoogleId, v.Owner });
+  }  
 }

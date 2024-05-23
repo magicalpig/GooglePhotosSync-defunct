@@ -7,8 +7,6 @@ namespace VideoDataAccess.Models;
 public class VideoFileGoogle : VideoFileBase
 { 
   private static readonly string ShortUrlBase = "https://photos.google.com/photo/";
-
-  [Key]
   public required string GoogleId { get; set; }
 
   // only gets set when setting RPCId

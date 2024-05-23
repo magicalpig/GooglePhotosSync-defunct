@@ -36,19 +36,13 @@ public class UserScopedVideoService(VideoContextFactory contextFactory, ICurrent
   {
     base.Update(video, userId ?? _currentUserService.UserId);
   }
-}
 
 
-// This is how we register the video service into the DI container
-// with the client code needing to know what video service's own dependencies are.
-public static class UserScopedVideoServiceExtensions
-{
-  public static IServiceCollection AddUserScopedVideoService<T>(this IServiceCollection services) 
-    where T : class, ICurrentUserService
+  // let client code see what user this service is scoped to
+  public string CurrentUser
   {
-    services.AddSingleton<VideoContextFactory>();
-    services.AddSingleton<IVideoService, UserScopedVideoService>();
-    services.AddSingleton<ICurrentUserService, T>();    
-    return services;
+    get { return _currentUserService.UserId; }
   }
 }
+
+

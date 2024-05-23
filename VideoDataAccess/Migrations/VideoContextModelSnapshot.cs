@@ -22,6 +22,9 @@ namespace VideoDataAccess.Migrations
                     b.Property<string>("GoogleId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Owner")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("TEXT");
 
@@ -46,10 +49,7 @@ namespace VideoDataAccess.Migrations
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("GoogleId");
+                    b.HasKey("GoogleId", "Owner");
 
                     b.ToTable("GoogleVideos");
                 });
@@ -57,6 +57,9 @@ namespace VideoDataAccess.Migrations
             modelBuilder.Entity("VideoDataAccess.Models.VideoFileWindows", b =>
                 {
                     b.Property<string>("Path")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CreatedDate")
@@ -81,10 +84,7 @@ namespace VideoDataAccess.Migrations
                     b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Path");
+                    b.HasKey("Path", "Owner");
 
                     b.ToTable("WindowsVideos");
                 });

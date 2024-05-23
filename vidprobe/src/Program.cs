@@ -16,16 +16,96 @@ class Program
   {
     var host = CreateHost();
 
-    var db = host.Services.GetRequiredService<IVideoService>();
-    var config = host.Services.GetRequiredService<IConfiguration>();
+    // This gives us a facade for db operations
+    var dbFactory = host.Services.GetRequiredService<IUserScopedVideoServiceFactory>();
+
     var settings = host.Services.GetRequiredService<Settings>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
+        
+    await ScrapeGoogle(
+      host,
+      dbFactory.CreateUserScopedVideoService<GoogleApiCurrentUserService>(),
+      settings,
+      logger
+    );
+
+    ScrapeLocalFileSystem(
+      dbFactory.CreateUserScopedVideoService<LocalComputerCurrentUserService>(), 
+      settings,
+      logger
+    );
+  }
+
+  private static IHost CreateHost()
+  {
+    // This does a lot of things like loading configuration, logging, setting up a services host.
+    // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
+    // It will also pull user secrets when in development mode.
+    var builder = Host.CreateDefaultBuilder()
+      .ConfigureServices((hostContext, services) =>
+      {        
+        services.AddUserScopedVideoServiceFactory();
+        
+        var config = hostContext.Configuration;
+        
+        if (hostContext.HostingEnvironment.IsDevelopment())
+        {
+          Console.WriteLine($"Current directory: {Environment.CurrentDirectory}");
+          var environment = hostContext.HostingEnvironment.EnvironmentName;
+          Console.WriteLine($"Current environment: {environment}");
+          Console.WriteLine("Loaded configuration:");
+          foreach (var pair in config.AsEnumerable())
+          {
+            Console.WriteLine($"{pair.Key}: {pair.Value}");
+          }
+        }
+        
+        var settings = new Settings();
+        config.GetSection("Settings").Bind(settings);
+
+        // load machine-specific settings from the "MachineSettings" key of appsettings*.json
+        // To allow case-insensitive matching, we'll have to loop over the keys in the MachineSetting section
+        string machineName = System.Net.Dns.GetHostName();
+        bool foundMachineSpecificSettings = false;
+        foreach (var section in config.GetSection("MachineSettings").GetChildren())
+        {     
+          if (string.Compare(section.Key, machineName, StringComparison.OrdinalIgnoreCase) == 0)
+          {
+            section.Bind(settings);
+            foundMachineSpecificSettings = true;
+            break;
+          }
+        }
+        if (!foundMachineSpecificSettings)
+        {
+          Console.WriteLine($"No MachineSettings defined in appsettings{{Environment}}.json for machine {machineName}");
+          Environment.Exit(1);
+        }
+        services.AddSingleton(settings);
+
+        // We need the same http client to be used by GoogleConnector and GooglePhotosService
+        // so that GoogleConnector can do the login and set the authorization headers for GooglePhotosService to use.        
+        services.AddSingleton<HttpClient>(new HttpClient()
+        {
+          BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
+        });
+        services.AddSingleton<GoogleConnector>();
+        // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
+        // give the GooglePhotosService a new http client but we need it to share one with GoogleConnector
+        services.AddSingleton<CasCap.Services.GooglePhotosService>();
+
+      });
+    return builder.Build();
+  }
+
+  private static async Task ScrapeGoogle(IHost host, UserScopedVideoService db, Settings settings, ILogger<Program> logger)
+  {   
+    logger.LogInformation("Scraping Google Photos for videos as user {user}", db.CurrentUser);
     if (settings.FreshDatabase)
     {
-      logger.LogInformation("Per the FreshDatabase setting, clearing out any existing records from Google videos and Windows videos database tables");
+      logger.LogInformation("Per the FreshDatabase setting, clearing out any Google videos from database");
       db.RemoveAllVideos();
     }
-    
     // Videos from Google
     // Most metadata comes from making calls to the REST API
     // but the file size, duration, and short id come from the jsonToDb project
@@ -99,10 +179,16 @@ class Program
         }
       }
     }
+  }
 
-
-    
-    #region LocalVideoFiles          
+  private static void ScrapeLocalFileSystem(UserScopedVideoService db, Settings settings, ILogger<Program> logger)
+  {
+    logger.LogInformation("Scraping Local File System for videos as user {user}", db.CurrentUser);
+    if (settings.FreshDatabase)
+    {
+      logger.LogInformation("Per the FreshDatabase setting, clearing out any Windows videos from database");
+      db.RemoveAllVideos();
+    }
     string? sourceDir = settings.SourceDir; 
     if (string.IsNullOrEmpty(sourceDir))
     {
@@ -224,70 +310,7 @@ class Program
       }
     });
     db.SaveChanges();
-    #endregion    
-  }
-
-  private static IHost CreateHost()
-  {
-    // This does a lot of things like loading configuration, logging, setting up a services host.
-    // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
-    // It will also pull user secrets when in development mode.
-    var builder = Host.CreateDefaultBuilder()
-      .ConfigureServices((hostContext, services) =>
-      {        
-        services.AddUserScopedVideoService<GoogleApiCurrentUserService>();
-        
-        var config = hostContext.Configuration;
-        
-        if (hostContext.HostingEnvironment.IsDevelopment())
-        {
-          Console.WriteLine($"Current directory: {Environment.CurrentDirectory}");
-          var environment = hostContext.HostingEnvironment.EnvironmentName;
-          Console.WriteLine($"Current environment: {environment}");
-          Console.WriteLine("Loaded configuration:");
-          foreach (var pair in config.AsEnumerable())
-          {
-            Console.WriteLine($"{pair.Key}: {pair.Value}");
-          }
-        }
-        
-        var settings = new Settings();
-        config.GetSection("Settings").Bind(settings);
-
-        // load machine-specific settings from the "MachineSettings" key of appsettings*.json
-        // To allow case-insensitive matching, we'll have to loop over the keys in the MachineSetting section
-        string machineName = System.Net.Dns.GetHostName();
-        bool foundMachineSpecificSettings = false;
-        foreach (var section in config.GetSection("MachineSettings").GetChildren())
-        {     
-          if (string.Compare(section.Key, machineName, StringComparison.OrdinalIgnoreCase) == 0)
-          {
-            section.Bind(settings);
-            foundMachineSpecificSettings = true;
-            break;
-          }
-        }
-        if (!foundMachineSpecificSettings)
-        {
-          Console.WriteLine($"No MachineSettings defined in appsettings{{Environment}}.json for machine {machineName}");
-          Environment.Exit(1);
-        }
-        services.AddSingleton(settings);
-
-        // We need the same http client to be used by GoogleConnector and GooglePhotosService
-        // so that GoogleConnector can do the login and set the authorization headers for GooglePhotosService to use.        
-        services.AddSingleton<HttpClient>(new HttpClient()
-        {
-          BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
-        });
-        services.AddSingleton<GoogleConnector>();
-        // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
-        // give the GooglePhotosService a new http client but we need it to share one with GoogleConnector
-        services.AddSingleton<CasCap.Services.GooglePhotosService>();
-
-      });
-    return builder.Build();
-  }
+  }    
   public async static Task SomethingElse()
   {  
     GlobalFFOptions.Configure(options => options.BinaryFolder = "c:/ffmpeg/bin");

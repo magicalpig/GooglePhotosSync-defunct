@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace VideoDataAccess.Services;
 
+// allows dotnet EF commands to create a VideoContext
 public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoContext>
 {
   public VideoContext CreateDbContext(string[] args)
