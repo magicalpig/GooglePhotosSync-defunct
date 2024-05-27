@@ -1,5 +1,4 @@
 using VideoDataAccess.Models;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace VideoDataAccess.Services;
 public class UserScopedVideoService(VideoContextFactory contextFactory, ICurrentUserService currentUserService)
@@ -9,39 +8,39 @@ public class UserScopedVideoService(VideoContextFactory contextFactory, ICurrent
 
   public override IQueryable<VideoFileGoogle> GetGoogleVideos(string? userId = null)
   {
-    return base.GetGoogleVideos(userId ?? _currentUserService.UserId);
+    return base.GetGoogleVideos(userId ?? CurrentUser);
   }
 
   public override IQueryable<VideoFileWindows> GetWindowsVideos(string? userId = null)
   {
-    return base.GetWindowsVideos(userId ?? _currentUserService.UserId);
+    return base.GetWindowsVideos(userId ?? CurrentUser);
   }
 
   public override void RemoveRange(IEnumerable<VideoFileBase> videos, string? userId = null)
   {
-    base.RemoveRange(videos, userId ?? _currentUserService.UserId);
+    base.RemoveRange(videos, userId ?? CurrentUser);
   }
 
   public override void RemoveAllVideos(string? userId = null)
   {
-    base.RemoveAllVideos(userId ?? _currentUserService.UserId);
+    base.RemoveAllVideos(userId ?? CurrentUser);
   }
 
   public override void Add<T>(T video, string? userId = null)
   {
-    base.Add(video, userId ?? _currentUserService.UserId);
+    base.Add(video, userId ?? CurrentUser);
   }
 
   public override void Update<T>(T video, string? userId = null)
   {
-    base.Update(video, userId ?? _currentUserService.UserId);
+    base.Update(video, userId ?? CurrentUser);
   }
 
 
   // let client code see what user this service is scoped to
   public string CurrentUser
   {
-    get { return _currentUserService.UserId; }
+    get => _currentUserService.UserId;
   }
 }
 

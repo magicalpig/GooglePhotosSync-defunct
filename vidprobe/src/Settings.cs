@@ -1,5 +1,5 @@
 namespace VidProbe;
-public class Settings
+public class VidProbeSettings
 {
     public string? SourceDir { get; set; }
     public bool FreshDatabase { get; set; }
@@ -7,4 +7,5 @@ public class Settings
     public int? FileLimitLocal { get; set; }
     public int? PageLimitGoogle { get; set; }
     public string? GoogleAPIClientId  { get; set; }
+    public string? LocalUserId { get; set; }
 }

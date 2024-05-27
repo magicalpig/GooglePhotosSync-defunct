@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using VideoDataAccess.Services;
 using VideoDataAccess.Models;
 using Microsoft.WindowsAPICodePack.Shell;
-using System.Data;
+using VidProbe.Services;
 
 namespace VidProbe;
 
@@ -19,15 +19,19 @@ class Program
     // This gives us a facade for db operations
     var dbFactory = host.Services.GetRequiredService<IUserScopedVideoServiceFactory>();
 
-    var settings = host.Services.GetRequiredService<Settings>();
+    var settings = host.Services.GetRequiredService<VidProbeSettings>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
-        
-    await ScrapeGoogle(
-      host,
-      dbFactory.CreateUserScopedVideoService<GoogleApiCurrentUserService>(),
-      settings,
-      logger
-    );
+
+    if (false)
+    {
+      var loginService = host.Services.GetRequiredService<GoogleLoginService>();
+      var testResult = await loginService.TestApiEndpoint("https://www.googleapis.com/oauth2/v2/userinfo");
+      Console.WriteLine($"TestApiEndpoint: {testResult}"  );
+      Environment.Exit(0);
+    }
+    
+    var googleScraper = host.Services.GetRequiredService<GoogleScraper>();
+    await googleScraper.ScrapeVideos();
 
     ScrapeLocalFileSystem(
       dbFactory.CreateUserScopedVideoService<LocalComputerCurrentUserService>(), 
@@ -43,145 +47,72 @@ class Program
     // It will also pull user secrets when in development mode.
     var builder = Host.CreateDefaultBuilder()
       .ConfigureServices((hostContext, services) =>
-      {        
-        services.AddUserScopedVideoServiceFactory();
-        
+      {
         var config = hostContext.Configuration;
+        var settings = BuildSettingsFromConfig(config, hostContext);
         
-        if (hostContext.HostingEnvironment.IsDevelopment())
-        {
-          Console.WriteLine($"Current directory: {Environment.CurrentDirectory}");
-          var environment = hostContext.HostingEnvironment.EnvironmentName;
-          Console.WriteLine($"Current environment: {environment}");
-          Console.WriteLine("Loaded configuration:");
-          foreach (var pair in config.AsEnumerable())
-          {
-            Console.WriteLine($"{pair.Key}: {pair.Value}");
-          }
-        }
-        
-        var settings = new Settings();
-        config.GetSection("Settings").Bind(settings);
-
-        // load machine-specific settings from the "MachineSettings" key of appsettings*.json
-        // To allow case-insensitive matching, we'll have to loop over the keys in the MachineSetting section
-        string machineName = System.Net.Dns.GetHostName();
-        bool foundMachineSpecificSettings = false;
-        foreach (var section in config.GetSection("MachineSettings").GetChildren())
-        {     
-          if (string.Compare(section.Key, machineName, StringComparison.OrdinalIgnoreCase) == 0)
-          {
-            section.Bind(settings);
-            foundMachineSpecificSettings = true;
-            break;
-          }
-        }
-        if (!foundMachineSpecificSettings)
-        {
-          Console.WriteLine($"No MachineSettings defined in appsettings{{Environment}}.json for machine {machineName}");
-          Environment.Exit(1);
-        }
-        services.AddSingleton(settings);
-
-        // We need the same http client to be used by GoogleConnector and GooglePhotosService
-        // so that GoogleConnector can do the login and set the authorization headers for GooglePhotosService to use.        
-        services.AddSingleton<HttpClient>(new HttpClient()
-        {
-          BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
-        });
-        services.AddSingleton<GoogleConnector>();
-        // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
-        // give the GooglePhotosService a new http client but we need it to share one with GoogleConnector
-        services.AddSingleton<CasCap.Services.GooglePhotosService>();
-
+        services
+          // this IServiceCollection extension method also registers the dependencies for a UserScopedVideoService
+          .AddUserScopedVideoServiceFactory()        
+          .AddSingleton(settings)
+          // We need the same http client to be used by GoogleScraper and GooglePhotosService
+          // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use.        
+          .AddSingleton<HttpClient>(
+            new HttpClient()
+            {
+              BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
+            })
+          // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
+          // give the GooglePhotosService a new http client but we need it to share one with GoogleScraper
+          .AddSingleton<CasCap.Services.GooglePhotosService>()
+          .AddSingleton<GoogleScraper>()
+          .AddSingleton<GoogleLoginService>()
+          .AddSingleton<LocalComputerCurrentUserService>()
+          .AddSingleton<GoogleApiCurrentUserService>()
+        ;
       });
     return builder.Build();
   }
 
-  private static async Task ScrapeGoogle(IHost host, UserScopedVideoService db, Settings settings, ILogger<Program> logger)
-  {   
-    logger.LogInformation("Scraping Google Photos for videos as user {user}", db.CurrentUser);
-    if (settings.FreshDatabase)
+  private static VidProbeSettings BuildSettingsFromConfig(IConfiguration config, HostBuilderContext? hostContext)
+  {
+    if (hostContext is not null && hostContext.HostingEnvironment.IsDevelopment())
     {
-      logger.LogInformation("Per the FreshDatabase setting, clearing out any Google videos from database");
-      db.RemoveAllVideos();
-    }
-    // Videos from Google
-    // Most metadata comes from making calls to the REST API
-    // but the file size, duration, and short id come from the jsonToDb project
-    //  (which uses a browser-based script to call the batchexecute RPC API)
-    var google = host.Services.GetRequiredService<GoogleConnector>();
-    
-    int? pageLimit = settings.PageLimitGoogle;
-    if (pageLimit > 0)
-      logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages", pageLimit);
-    else
-      pageLimit = null;
-    
-    List<string> newlyScrapedIds = [];
-    await foreach (var v in google.ScrapeVideos(pageLimit))
-    {
-      VideoFileGoogle? existing = db.GetGoogleVideos().FirstOrDefault(g => g.GoogleId == v.GoogleId);
-      if (existing is null)
+      Console.WriteLine($"Current directory: {Environment.CurrentDirectory}");
+      var environment = hostContext.HostingEnvironment.EnvironmentName;
+      Console.WriteLine($"Current environment: {environment}");
+      Console.WriteLine("Loaded configuration:");
+      foreach (var pair in config.AsEnumerable())
       {
-        logger.LogDebug("new video from Google: {id}", v.GoogleId);
-        db.Add(v);
-      }
-      // possibly update the existing google video database record
-      else
-      {
-        if (!v.Equals(existing))
-        {          
-          logger.LogDebug("updating google video: {id}", v.GoogleId);
-          // copies all possible fields that come back from the REST API into existing record
-          // (but leaves other fields, like Size and Duration, alone)
-          existing.SyncToRestAPIResult(v);
-        }
-      } 
-    };
-    db.SaveChanges();
-
-    // Offer to delete records from database if they weren't found on Google Photos
-    // but not if a page limit was used (meaning Google Photos was not completely queried)
-    if (pageLimit is null)
-    {
-      // Check all videos in googleVideos table to see if any were not found by Google Photos API
-      var videosInDatabase = db.GetGoogleVideos().ToList();
-      List<VideoFileGoogle> videosNotInGoogle = [];
-      foreach (var video in videosInDatabase)
-      {
-        if (!newlyScrapedIds.Any(id => id == video.GoogleId))
-        {
-          videosNotInGoogle.Add(video);
-        }
-      }
-
-      int count = videosNotInGoogle.Count;
-      if (count > 0)
-      {
-        logger.LogDebug("Total cases of video present in db but not on google photos: {count}", count);
-        Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
-        string? response = Console.ReadLine();
-        if (response?.Equals("Y", StringComparison.OrdinalIgnoreCase) ?? false)
-        {
-          db.RemoveRange(videosNotInGoogle);
-          db.SaveChanges();
-          logger.LogInformation("Deleted videosNotInGoogle from the database.");
-          Console.WriteLine("List of GoogleIds for records just deleted:");
-          foreach (var video in videosNotInGoogle)
-          {
-              Console.WriteLine(video.GoogleId);
-          }
-        }
-        else
-        {
-          Console.WriteLine("videosNotInGoogle will not be deleted from the database.");
-        }
+        Console.WriteLine($"{pair.Key}: {pair.Value}");
       }
     }
+    
+    var settings = new VidProbeSettings();
+    config.GetSection("Settings").Bind(settings);
+
+    // load machine-specific settings from the "MachineSettings" key of appsettings*.json
+    // To allow case-insensitive matching, we'll have to loop over the keys in the MachineSetting section
+    string machineName = System.Net.Dns.GetHostName();
+    bool foundMachineSpecificSettings = false;
+    foreach (var section in config.GetSection("MachineSettings").GetChildren())
+    {     
+      if (string.Compare(section.Key, machineName, StringComparison.OrdinalIgnoreCase) == 0)
+      {
+        section.Bind(settings);
+        foundMachineSpecificSettings = true;
+        break;
+      }
+    }
+    if (!foundMachineSpecificSettings)
+    {
+      Console.WriteLine($"No MachineSettings defined in appsettings{{Environment}}.json for machine {machineName}");
+      Environment.Exit(1);
+    }
+    return settings;
   }
 
-  private static void ScrapeLocalFileSystem(UserScopedVideoService db, Settings settings, ILogger<Program> logger)
+  private static void ScrapeLocalFileSystem(UserScopedVideoService db, VidProbeSettings settings, ILogger<Program> logger)
   {
     logger.LogInformation("Scraping Local File System for videos as user {user}", db.CurrentUser);
     if (settings.FreshDatabase)

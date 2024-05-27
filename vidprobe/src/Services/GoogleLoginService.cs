@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Google.Apis.Auth.OAuth2;
+using Newtonsoft.Json;
 using System.Net.Http.Headers;
 
 namespace VidProbe.Services;
@@ -15,6 +16,7 @@ public class GoogleLoginService(ILogger<GoogleLoginService> logger, VidProbeSett
   private readonly HttpClient _sharedClient = sharedClient;
 
   private bool _isLoggedIn = false;
+  private const string UserInfoUrl = "https://www.googleapis.com/oauth2/v2/userinfo";
 
   public async Task<bool> LoginAsync()
   {    
@@ -27,7 +29,7 @@ public class GoogleLoginService(ILogger<GoogleLoginService> logger, VidProbeSett
     _logger.LogDebug("Sending {localUserId} to Google to get authorization tokens", localUserId);
     UserCredential credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
       new ClientSecrets { ClientId = _settings.GoogleAPIClientId },
-      [ "https://www.googleapis.com/auth/photoslibrary.readonly" ],
+      [ "https://www.googleapis.com/auth/photoslibrary.readonly", "https://www.googleapis.com/auth/userinfo.email" ],
       localUserId,
       CancellationToken.None
     );
@@ -61,8 +63,50 @@ public class GoogleLoginService(ILogger<GoogleLoginService> logger, VidProbeSett
 
   public async Task<string> GetUserIdAsync()
   {
+    string? email = null;
+    string? extraErrorInfo = null;
     if (!_isLoggedIn)
       await LoginAsync();
-    return "poopoo";
+    var response = await _sharedClient.GetAsync(UserInfoUrl);
+    if (response.IsSuccessStatusCode)
+    {
+      var content = await response.Content.ReadAsStringAsync();
+      try 
+      {
+        var userInfo = JsonConvert.DeserializeObject<UserInfoResponse>(content);
+        email = userInfo?.Email;
+      }
+      catch (Exception ex)
+      {
+        extraErrorInfo = $"Failed to deserialize response from Google into a UserInfoResponse object. Response was {content}";
+        _logger.LogError(ex, extraErrorInfo);
+      }
+    }
+    else
+    {
+      extraErrorInfo = "Failed to get user info from Google. Maybe access token is old and doesn't include the https://www.googleapis.com/auth/userinfo.email scope? Try deleting the token from user's Roaming folder.";
+      _logger.LogError("{msg}", extraErrorInfo);
+    }
+
+    if (email is null)      throw new InvalidOperationException(extraErrorInfo);
+    else                    return email;      
   }
+
+  private class UserInfoResponse
+  {
+    public string? Id { get; set; }
+    public string? Email { get; set; }
+    public bool? VerifiedEmail { get; set; }
+    public string? Picture { get; set; }
+  }
+
+  public async Task<string> TestApiEndpoint(string url, string method = "GET")
+  {
+    if (!_isLoggedIn)
+      await LoginAsync();
+    var request = new HttpRequestMessage(new HttpMethod(method), url);
+    var response = await _sharedClient.SendAsync(request);
+    return await response.Content.ReadAsStringAsync();
+  }
+  
 }

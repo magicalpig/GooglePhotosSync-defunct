@@ -1,14 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 
 namespace VideoDataAccess.Services;
-public class UserScopedVideoServiceFactory : IUserScopedVideoServiceFactory
+public class UserScopedVideoServiceFactory(IServiceProvider serviceProvider) : IUserScopedVideoServiceFactory
 {
-  private readonly IServiceProvider _serviceProvider;
-
-  public UserScopedVideoServiceFactory(IServiceProvider serviceProvider)
-  {
-    _serviceProvider = serviceProvider;
-  }
+  private readonly IServiceProvider _serviceProvider = serviceProvider;
 
   // <T> names the type of ICurrentUserService
   public UserScopedVideoService CreateUserScopedVideoService<T>() where T : ICurrentUserService
@@ -24,8 +19,6 @@ public static class UserScopedVideoServiceFactoryExtensions
   public static IServiceCollection AddUserScopedVideoServiceFactory(this IServiceCollection services) 
   {
     services.AddSingleton<VideoContextFactory>();
-    services.AddTransient<GoogleApiCurrentUserService>();
-    services.AddTransient<LocalComputerCurrentUserService>();
     services.AddSingleton<IUserScopedVideoServiceFactory, UserScopedVideoServiceFactory>();
     return services;
   }

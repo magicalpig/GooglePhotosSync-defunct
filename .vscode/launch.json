@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
       "name": "Launch webserver",
       "type": "coreclr",
@@ -38,6 +39,23 @@
       "env": {
         "DOTNET_ENVIRONMENT": "Development"
       },
+      "justMyCode": false
+    },
+    {
+      "name": "Launch Vidprobe Prodictopm",
+      "type": "coreclr",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
+      "args": [],
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "logging": {
+        "moduleLoad": false,
+        "trace": "verbose"
+      },
+      
       "justMyCode": false
     },
     {
