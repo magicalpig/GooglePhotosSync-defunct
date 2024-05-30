@@ -75,7 +75,6 @@ public abstract class VideoFileBase
     Name = other.Name;
     CreatedDate = other.CreatedDate;
     Description = other.Description;
-    Duration = other.Duration;
     DurationMs = other.DurationMs;
     Size = other.Size;
   }

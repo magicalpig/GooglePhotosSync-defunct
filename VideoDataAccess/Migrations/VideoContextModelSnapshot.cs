@@ -62,6 +62,10 @@ namespace VideoDataAccess.Migrations
                     b.Property<string>("Owner")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("TEXT");
 

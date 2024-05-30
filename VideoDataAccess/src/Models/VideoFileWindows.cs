@@ -8,10 +8,12 @@ public class VideoFileWindows : VideoFileBase
 {  
   public string Path { get; set; } = String.Empty;
   public string Folder { get; set; } = String.Empty;
+  public string Codec { get; set; } = String.Empty;
   public void SyncTo(VideoFileWindows other)
   {
     base.SyncTo(other);
-    // neither folder nor path should ever change, so it's okay to just update base class properties
+    Codec = other.Codec;
+    // neither folder nor path should ever change
   }
   public override bool Equals(object? obj)
   {
@@ -24,13 +26,15 @@ public class VideoFileWindows : VideoFileBase
 
     return base.Equals(obj) &&
          Path == other.Path &&
-         Folder == other.Folder;
+         Folder == other.Folder &&
+         Codec == other.Codec;
   }
   public override int GetHashCode()
   {
-    return HashCode.Combine(base.GetHashCode(), Path, Folder);
+    return HashCode.Combine(base.GetHashCode(), Path, Folder, Codec);
   }
 }
+
 
 // For CSV output
 public sealed class VideoFileWindowsMap : ClassMap<VideoFileWindows>

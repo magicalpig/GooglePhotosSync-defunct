@@ -4,9 +4,7 @@ using VideoDataAccess.Models;
 namespace VideoDataAccess.Services;
 
 
-// no one is allowed to create a VideoContext. The constructor is internal. Must use VideoService. 
-// Usually this will be UserScopedVideoService which ensures db operations are scoped to the current user.
-
+// A VideoContext should only be created by a VideoContextFactory
 public class VideoContext : DbContext
 {
   public DbSet<VideoFileGoogle> GoogleVideos { get; set; }

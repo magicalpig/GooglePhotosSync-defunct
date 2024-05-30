@@ -103,3 +103,20 @@ The reason GoogleConnector needs to perform the authorization is that the Google
 - document how to run from command line including passing arguments, setting Development/Production environment variable.
 - nothing is populating GoogleVideos "URL" column.
 
+# Technical Notes
+Regarding the area of code concerned with data access, there is a potentially confusing structure of objects, interfaces, and factories.  
+
+Data access goes through a DbContext, which is standard EF Core stuff.  But I have a subclass called `VideoContext` that says to use SQLite and has named datasets: `GoogleVideos` and `WindowsVideos`.  
+
+The `VideoContext` is created by a factory called `VideoContextFactory`. The factory provides the connection string and is also useful because `VideoContext` has an `internal` constructor.  
+
+The factory's method to create a `VideoContext` is also `internal`. Application code is not supposed to own and use a factory directly. Instead, the factory is encapsulated by a `VideoService` object.  
+
+A `VideoService` proxies certain method calls to the underlying `VideoContext` acting like a facade. This is the only way the application code is meant to interact with the `VideoContext` and thus the database.  
+
+`UserScopedVideoService` is a subclass of `VideoService` that ensures all database operations are scoped down to the current user.  This type of video service has an `ICurrentUserService` that tells it how to get the current user id, whether this is the Google account on whose behalf we are hitting the Google REST API, or scraping the local filesystem, etc.  
+
+I ended up feeling like I had to create a factory for `UserScopedVideoService` so that the app code had a way to tell it which specific `ICurrentUserService` implementation to use.  If memory serves me correctly, things got complicated in the vidprobe project because I wanted 2 flavors of `UserScopedVideoService` during the lifetime of a single run of the program: one for the local file system and one for hitting the Google REST API.  
+
+There's also something called the `DesignTimeDbContextFactory` which I had to create in order to give the EF Core tools a way to create a `VideoContext` (whose constructor is internal) when I'm running command line tools like `dotnet ef migrations add AddedNewColumn`.
+
