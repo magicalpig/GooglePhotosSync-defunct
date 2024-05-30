@@ -18,6 +18,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5222"
       },
+      "logging": {
+        "moduleLoad": false,
+        "trace": "verbose"
+      },
       "sourceFileMap": {
           "/Views": "${workspaceFolder}/Views"
       }

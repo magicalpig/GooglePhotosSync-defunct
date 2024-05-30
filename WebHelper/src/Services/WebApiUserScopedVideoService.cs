@@ -1,10 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-using WebHelper.Models;
 using VideoDataAccess.Services;
 using VideoDataAccess.Models;
+using WebHelper.Models;
+using Microsoft.EntityFrameworkCore;
 
-namespace WebHelper.Repositories;
-
+namespace WebHelper.Services;
 public enum UpdateResultCode
 {
   Success,
@@ -12,19 +11,21 @@ public enum UpdateResultCode
   NotFound,
   NoChange
 }
-public class VideoRepository(VideoContext context)
-{
-  private readonly VideoContext db = context;
 
+// reminder: the VideoContextFactory will be passed up to VideoService base class where it will be used to assign a private readonly VideoContext _context;
+public class WebApiUserScopedVideoService(VideoContextFactory contextFactory, ICurrentUserService currentUserService)
+  : UserScopedVideoService(contextFactory, currentUserService)
+{
   // try to update an existing google video record with the metadata just scraped from the RPC API.
   public async Task<UpdateResultCode> UpdateVideoFileGoogle(RpcScrapedVideo inVideo)
   {
     // If a video is coming in with a GoogleId value, that's the REST ID for the video.
     // The client could only have obtained this by doing a HEAD call using the RPC Id and looking at
     // the redirect response.
-    // The presence of this property indicates a second attempt to update a db record for a video
-    // scraped from web browser.    
-    VideoFileGoogle? googleVideo = await db.GoogleVideos.FirstOrDefaultAsync(gv => gv.RpcId == inVideo.RpcId || gv.GoogleId == inVideo.GoogleId);
+    // The presence of this property indicates a second attempt to update a _context record for a video
+    // scraped from web browser.
+    var thisUsersVideos = GetGoogleVideos();
+    VideoFileGoogle? googleVideo = await thisUsersVideos.FirstOrDefaultAsync(gv => gv.RpcId == inVideo.RpcId || gv.GoogleId == inVideo.GoogleId);
     
     if (googleVideo == null)
     {
@@ -41,6 +42,11 @@ public class VideoRepository(VideoContext context)
         var googleVideoValue = typeof(VideoFileGoogle)?.GetProperty(prop)?.GetValue(googleVideo);
         if (inVideoValue is not null && !Equals(inVideoValue, googleVideoValue))
         {
+          if (prop == "GoogleId" && googleVideo.GoogleId != null)
+          {
+            Console.WriteLine($"GoogleId already set to {googleVideo.GoogleId}. Skipping update.");
+            continue;
+          }
           Console.WriteLine($"Updating {prop} from \"{googleVideoValue}\" to \"{inVideoValue}\"");
           typeof(VideoFileGoogle).GetProperty(prop)?.SetValue(googleVideo, inVideoValue);
           recordChanged = true;
@@ -51,7 +57,7 @@ public class VideoRepository(VideoContext context)
       {
         try 
         {
-          await db.SaveChangesAsync();
+          SaveChanges();
           return UpdateResultCode.Success;
         }
         catch (Exception e)
@@ -69,6 +75,17 @@ public class VideoRepository(VideoContext context)
 
   public async Task<List<string>> GetGoogleVideosWithNoRpcId()
   {
-    return await db.GoogleVideos.Where(gv => gv.RpcId == null).Select(gv => gv.GoogleId).ToListAsync();
+    return await GetGoogleVideos().Where(gv => gv.RpcId == null).Select(gv => gv.GoogleId).ToListAsync();
+  }
+}
+
+public static class WebApiUserScopedVideoServiceExtensions
+{
+  public static IServiceCollection AddWebApiUserScopedVideoService(this IServiceCollection services)
+  {
+    services.AddScoped<ICurrentUserService, WebApiCurrentUserService>();
+    services.AddSingleton<VideoContextFactory>();
+    services.AddScoped<WebApiUserScopedVideoService>();
+    return services;
   }
 }

@@ -13,11 +13,7 @@ class Program
   public static async Task Main()
   {
     var host = CreateHost();
-
-    // This gives us a facade for db operations
-    var dbFactory = host.Services.GetRequiredService<IUserScopedVideoServiceFactory>();
-
-
+    
     if (false)
     {
       var loginService = host.Services.GetRequiredService<GoogleLoginService>();

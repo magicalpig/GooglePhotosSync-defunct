@@ -1,8 +1,8 @@
 namespace VideoDataAccess.Services;
-public class WebBrowserCurrentUserService : ICurrentUserService
+public class WebApiCurrentUserService : ICurrentUserService
 {
   public string UserId { get; private set; }
-  public WebBrowserCurrentUserService() 
+  public WebApiCurrentUserService() 
   {
     UserId = "user2@example.com";
   }  

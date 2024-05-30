@@ -7,11 +7,12 @@ using VideoDataAccess.Models;
 namespace VideoDataAccess.Services;
 public class VideoService(VideoContextFactory contextFactory) : IVideoService
 {
-  protected readonly VideoContext _context = contextFactory.CreateVideoContext();
+  private readonly VideoContext _context = contextFactory.CreateVideoContext();
 
   private IQueryable<T> GetVideos<T>(string? userId = null) where T : VideoFileBase
   {
-    return _context.Set<T>().Where(v => userId == null || v.Owner == userId);
+    var results = _context.Set<T>().Where(v => userId == null || v.Owner == userId);
+    return results;
   }
   public virtual IQueryable<VideoFileGoogle> GetGoogleVideos(string? userId = null)
   {
