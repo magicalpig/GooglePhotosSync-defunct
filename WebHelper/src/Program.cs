@@ -1,5 +1,3 @@
-using VideoDataAccess.Services;
-using WebHelper.Repositories;
 using WebHelper.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,7 +17,7 @@ builder.Services
               .AllowAnyMethod();
       });
   })
-  .AddWebApiUserScopedVideoService()
+  .AddWebApiVideoService()
   .AddControllers();
 
 

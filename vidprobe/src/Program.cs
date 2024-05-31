@@ -13,17 +13,9 @@ class Program
   public static async Task Main()
   {
     var host = CreateHost();
-    
-    if (false)
-    {
-      var loginService = host.Services.GetRequiredService<GoogleLoginService>();
-      var testResult = await loginService.TestApiEndpoint("https://www.googleapis.com/oauth2/v2/userinfo");
-      Console.WriteLine($"TestApiEndpoint: {testResult}"  );
-      Environment.Exit(0);
-    }
-    
+ 
     var googleScraper = host.Services.GetRequiredService<GoogleScraper>();
-    //await googleScraper.ScrapeVideos();
+    await googleScraper.ScrapeVideos();
 
     var localFileSystemScraper = host.Services.GetRequiredService<LocalFileSystemScraper>();
     await localFileSystemScraper.ScrapeVideos();
@@ -41,8 +33,6 @@ class Program
         var settings = BuildSettingsFromConfig(config, hostContext);
         
         services
-          // this IServiceCollection extension method also registers the dependencies for a UserScopedVideoService
-          .AddUserScopedVideoServiceFactory()        
           .AddSingleton(settings)
           // We need the same http client to be used by GoogleScraper and GooglePhotosService
           // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use.        
@@ -51,7 +41,9 @@ class Program
             {
               BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
             })
-          
+
+          .AddSingleton<VideoContextFactory>()
+                    
           .AddSingleton<GoogleScraper>()
           // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
           // give the GooglePhotosService a new http client but we need it to share one with GoogleScraper

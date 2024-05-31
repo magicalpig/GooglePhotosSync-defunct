@@ -12,10 +12,14 @@ public enum UpdateResultCode
   NoChange
 }
 
+// Subclass of UserScopedVideoService providing some methods that are specific to receiving video information
+// from a web browser that has just made use of Google's RPC API.
+
 // reminder: the VideoContextFactory will be passed up to VideoService base class where it will be used to assign a private readonly VideoContext _context;
-public class WebApiUserScopedVideoService(VideoContextFactory contextFactory, ICurrentUserService currentUserService)
-  : UserScopedVideoService(contextFactory, currentUserService)
+public class WebApiVideoService(VideoContextFactory contextFactory)
 {
+  private readonly VideoContext _db = contextFactory.CreateUserScopedVideoContext<WebApiCurrentUserService>();
+
   // try to update an existing google video record with the metadata just scraped from the RPC API.
   public async Task<UpdateResultCode> UpdateVideoFileGoogle(RpcScrapedVideo inVideo)
   {
@@ -24,7 +28,7 @@ public class WebApiUserScopedVideoService(VideoContextFactory contextFactory, IC
     // the redirect response.
     // The presence of this property indicates a second attempt to update a _context record for a video
     // scraped from web browser.
-    var thisUsersVideos = GetGoogleVideos();
+    var thisUsersVideos = _db.GetGoogleVideos();
     VideoFileGoogle? googleVideo = await thisUsersVideos.FirstOrDefaultAsync(gv => gv.RpcId == inVideo.RpcId || gv.GoogleId == inVideo.GoogleId);
     
     if (googleVideo == null)
@@ -57,7 +61,7 @@ public class WebApiUserScopedVideoService(VideoContextFactory contextFactory, IC
       {
         try 
         {
-          SaveChanges();
+          _db.SaveChanges();
           return UpdateResultCode.Success;
         }
         catch (Exception e)
@@ -75,17 +79,17 @@ public class WebApiUserScopedVideoService(VideoContextFactory contextFactory, IC
 
   public async Task<List<string>> GetGoogleVideosWithNoRpcId()
   {
-    return await GetGoogleVideos().Where(gv => gv.RpcId == null).Select(gv => gv.GoogleId).ToListAsync();
+    return await _db.GetGoogleVideos().Where(gv => gv.RpcId == null).Select(gv => gv.GoogleId).ToListAsync();
   }
 }
 
-public static class WebApiUserScopedVideoServiceExtensions
+public static class WebApiVideoServiceExtensions
 {
-  public static IServiceCollection AddWebApiUserScopedVideoService(this IServiceCollection services)
+  public static IServiceCollection AddWebApiVideoService(this IServiceCollection services)
   {
-    services.AddScoped<ICurrentUserService, WebApiCurrentUserService>();
-    services.AddSingleton<VideoContextFactory>();
-    services.AddScoped<WebApiUserScopedVideoService>();
+    services.AddScoped<WebApiCurrentUserService>();
+    services.AddScoped<VideoContextFactory>();
+    services.AddScoped<WebApiVideoService>();
     return services;
   }
 }

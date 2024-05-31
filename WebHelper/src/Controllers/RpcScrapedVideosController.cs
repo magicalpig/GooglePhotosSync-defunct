@@ -4,9 +4,9 @@ using WebHelper.Services;
 
 namespace WebHelper.Controllers;
 [Route("api/[controller]")]
-public class RpcScrapedVideosController(WebApiUserScopedVideoService videoService) : ControllerBase
+public class RpcScrapedVideosController(WebApiVideoService videoService) : ControllerBase
 {
-  private readonly WebApiUserScopedVideoService _db = videoService;
+  private readonly WebApiVideoService _db = videoService;
   [HttpPost]
   public async Task<IActionResult> Post([FromBody] List<RpcScrapedVideo> videos)
   {

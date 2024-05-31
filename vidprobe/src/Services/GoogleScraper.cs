@@ -7,15 +7,14 @@ using VideoDataAccess.Services;
 
 namespace VidProbe.Services;
 //'The provider for the source IQueryable doesn't implement IDbAsyncQueryProvider. Only providers that implement IDbAsyncQueryProvider can be used for Entity Framework asynchronous operations
-public class GoogleScraper(IUserScopedVideoServiceFactory dbFactory, VidProbeSettings settings, ILogger<GoogleScraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
+public class GoogleScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<GoogleScraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
 {
   // Injected dependencies
   private readonly VidProbeSettings _settings = settings;
   private readonly ILogger<GoogleScraper> _logger = logger;
   private readonly GooglePhotosService _googleService = service;
   private readonly GoogleLoginService _googleLoginService = googleLoginService;
-  private readonly UserScopedVideoService _db = 
-    dbFactory.CreateUserScopedVideoService<GoogleApiCurrentUserService>();
+  private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<GoogleApiCurrentUserService>();
     
   private static readonly Filter _videoOnlyFilter = new()
   {
@@ -38,7 +37,7 @@ public class GoogleScraper(IUserScopedVideoServiceFactory dbFactory, VidProbeSet
     
     int? pageLimit = _settings.PageLimitGoogle;
     if (pageLimit > 0)
-      _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _db.CurrentUser);
+      _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _db.GetCurrentUser() ?? "<no user set>");
     else
       pageLimit = null;
 

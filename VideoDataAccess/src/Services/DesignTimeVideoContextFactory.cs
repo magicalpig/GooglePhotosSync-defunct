@@ -9,6 +9,6 @@ public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoCo
   public VideoContext CreateDbContext(string[] args)
   {
     var logger = new Logger<VideoContext>(new LoggerFactory());
-    return new VideoContextFactory(logger).CreateVideoContext();
+    return new VideoContextFactory(logger, null).CreateVideoContext();
   }
 }

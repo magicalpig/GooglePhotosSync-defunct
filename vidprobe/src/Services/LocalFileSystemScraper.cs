@@ -9,16 +9,16 @@ using Newtonsoft.Json;
 
 namespace VidProbe.Services;
 
-public class LocalFileSystemScraper(IUserScopedVideoServiceFactory dbFactory, VidProbeSettings settings, ILogger<LocalFileSystemScraper> logger)
+public class LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<LocalFileSystemScraper> logger)
 {
-  private readonly UserScopedVideoService _db = dbFactory.CreateUserScopedVideoService<LocalComputerCurrentUserService>();
+  private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
   private readonly VidProbeSettings _settings = settings;
   private readonly ILogger<LocalFileSystemScraper> _logger = logger;
   private static readonly object ShellFileLock = new();
   
   public async Task ScrapeVideos()
   {
-    _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.CurrentUser);
+    _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.GetCurrentUser() ?? "<no user set>");
     if (_settings.FreshDatabase)
     {
       _logger.LogInformation("Per the FreshDatabase setting, clearing out any Windows videos from database");
@@ -102,10 +102,6 @@ public class LocalFileSystemScraper(IUserScopedVideoServiceFactory dbFactory, Vi
         countShell++;
         AttachShellMetadata(videoFile.Path, videoFile);
       }
-      else
-      {
-        _logger.LogDebug("VideoFile JSON: {json}", JsonConvert.SerializeObject(videoFile));
-      }
     }
     stopwatch.Stop();
     _logger.LogDebug("Shell metadata attachment for {countShell} videos took {elapsed} milliseconds", countShell, stopwatch.ElapsedMilliseconds);
@@ -128,7 +124,7 @@ public class LocalFileSystemScraper(IUserScopedVideoServiceFactory dbFactory, Vi
       }
       else
       {
-        //_logger.LogDebug("no change to local video: {filepath}", r.Path);
+        _logger.LogDebug("no change to local video: {filepath}", r.Path);
       }
     });
     _db.SaveChanges();
