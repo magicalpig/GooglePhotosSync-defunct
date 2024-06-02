@@ -1,3 +1,5 @@
+using WebHelper.Filters;
+using WebHelper.Middleware;
 using WebHelper.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,7 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services
   .AddEndpointsApiExplorer()
-  .AddSwaggerGen()
+  .AddSwaggerGen(c =>
+  {
+    c.SwaggerDoc("v1", new() { Title = "WebHelper", Version = "v1" });
+    c.OperationFilter<UserIdHeaderOperationFilter>();
+  })
   .AddCors(options =>
   {
     options.AddPolicy("AllowSpecificOrigin",
@@ -18,6 +24,7 @@ builder.Services
       });
   })
   .AddWebApiVideoService()
+  .AddHttpContextAccessor() // lets UserIdExtractionMiddleware access the user id header
   .AddControllers();
 
 
@@ -34,5 +41,6 @@ else
 }
 app.UseCors("AllowSpecificOrigin");
 app.MapControllers();
+app.UseMiddleware<UserIdExtractionMiddleware>();
   
 app.Run();

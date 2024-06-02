@@ -79,7 +79,7 @@ public class WebApiVideoService(VideoContextFactory contextFactory)
 
   public async Task<List<string>> GetGoogleVideosWithNoRpcId()
   {
-    return await _db.GetGoogleVideos().Where(gv => gv.RpcId == null).Select(gv => gv.GoogleId).ToListAsync();
+    return await _db.GetGoogleVideos().Where(gv => string.IsNullOrEmpty(gv.RpcId)).Select(gv => gv.GoogleId).ToListAsync();
   }
 }
 

@@ -1,6 +1,14 @@
 @WebHelper_HostAddress = http://localhost:5222
 
-GET {{WebHelper_HostAddress}}/weatherforecast/
-Accept: application/json
+POST {{WebHelper_HostAddress}}/api/RpcScrapedVideos
+Content-Type: application/json
 
+[
+  {
+    "rpcId": "aaastork",
+    "size": 0,
+    "durationMs": 0,
+    "googleId": "APdo2mw_bSMiGD1eJeEKX3XcPc88EGidtn9kZRaZS8fmVPaDLd2tjXtOF4MKr0sZKzsUdOR5AQY8qFJX5zQIozMDnGnEuvzBZA"
+  }
+]
 ###

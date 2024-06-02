@@ -12,7 +12,7 @@
 // @downloadURL https://github.com/xob0t/Google-Photos-Toolkit/releases/latest/download/google_photos_toolkit.user.js
 // @run-at      body
 // @grant       none
-// @noframes    
+// @noframes
 // ==/UserScript==
 (function () {
   'use strict';
@@ -1318,14 +1318,14 @@
       this.maxConcurrentApiReq = parseInt(maxConcurrentApiReq);
       this.operationSize = parseInt(operationSize);
       this.lockedFolderOpSize = parseInt(lockedFolderOpSize);
-      this.infoSize = parseInt(infoSize); 
+      this.infoSize = parseInt(infoSize);
     }
 
     async executeWithConcurrency(apiMethod, successCheck, operationSize, itemsArray, ...args) {
       const promisePool = [];
       const results = [];
       const chunkedItems = splitArrayIntoChunks(itemsArray, operationSize);
-    
+
       for (const chunk of chunkedItems) {
         if (!this.core.isProcessRunning) return;
         while(promisePool.length >= this.maxConcurrentApiReq){
@@ -1334,10 +1334,10 @@
         }
 
         log(`Processing ${chunk.length} items`);
-    
+
         const promise = apiMethod.call(this.api, chunk, ...args); // Call apiMethod with correct context
         promisePool.push(promise);
-    
+
         promise
           .then(result => {
             results.push(...result);
@@ -1455,7 +1455,7 @@
       }
       await this.executeWithConcurrency(this.api.setArchive, isSuccess, this.operationSize, mediaIdList, false);
     }
-    
+
     async setAsFavorite(mediaItems) {
       log(`Setting ${mediaItems.length} items as favorite`);
       const isSuccess = result => Array.isArray(result);
@@ -1467,7 +1467,7 @@
       const mediaIdList = mediaItems.map(item => item.mediaId);
       await this.executeWithConcurrency(this.api.setFavorite, isSuccess, this.operationSize, mediaIdList, true);
     }
-    
+
     async unFavorite(mediaItems) {
       log(`Removing ${mediaItems.length} items from favorites`);
       const isSuccess = result => Array.isArray(result);
@@ -1524,20 +1524,21 @@
         log('could not put the JSON in your clipboard. Check dev tools for the JSON.. ' + err, 'error');
         console.log(json);
       }
-                
+
       log('Sending video data to server');
       let response;
+      let userId = window.WIZ_global_data.oPEP7c;
       try {
         response = await fetch('http://localhost:5222/api/RpcScrapedVideos', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-UserId': userId },
           body: json
         });
       } catch (error) {
         log('Error:' + error.toString(), 'error');
         throw error;
       }
-      
+
       let data;
       try {
         data = await response.json();
@@ -1547,7 +1548,7 @@
         throw error;
       }
 
-      
+
       // Continue function only if the server's response indicates it has records missing RPC ID.
       // recordsWithNoRpcId is a list of REST IDs for such database records.
       if (!data.recordsWithNoRpcId?.length > 0) {
@@ -1562,14 +1563,14 @@
       }
 
       // of these id mappings are for db records having REST ID but no RPC ID.
-      let idMappings = await this.convertRestIdsToRpcIds(data.recordsWithNoRpcId);            
-      if (Object.keys(idMappings).length > 0) {        
-        let fixedMediaItems = 
+      let idMappings = await this.convertRestIdsToRpcIds(data.recordsWithNoRpcId);
+      if (Object.keys(idMappings).length > 0) {
+        let fixedMediaItems =
           Object.keys(idMappings).map(rpcId => {
             const restId = idMappings[rpcId];
             // try to attach REST ID to media items that failed to update a record on first attempt.
             // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
-            // but we still want to let the server know of the id mapping 
+            // but we still want to let the server know of the id mapping
             const mediaItem = minimalMediaItems.find(item => item.rpcId === rpcId);
             return { ...mediaItem, googleId: restId };
           });
@@ -1580,7 +1581,7 @@
 
     // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
     async convertRestIdsToRpcIds(restIds) {
-      log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);      
+      log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);
       const urlBase = "https://photos.google.com/lr/photo/";
       let callCount = 0;
       const newMappings = {};
@@ -1747,7 +1748,7 @@
       if (mediaItems?.length && filter.favorite || filter.excludeFavorites) mediaItems = this.filterFavorite(mediaItems, filter);
       if (mediaItems?.length && filter.type) mediaItems = this.filterByMediaType(mediaItems, filter);
 
-      if (mediaItems?.length && (filter.space 
+      if (mediaItems?.length && (filter.space
         || filter.quality
         || filter.lowerBoundarySize
         || filter.higherBoundarySize
@@ -1817,7 +1818,7 @@
             log('No media items on the page!', 'error');
             return mediaItems;
           }
-          
+
           nextPageId = mediaPage.nextPageId;
           mediaPage.items = mediaPage.items.filter(item => item.dateTaken < lowerBoundaryDate || item.dateTaken > higherBoundaryDate);
 
@@ -2025,7 +2026,7 @@
         log(error, 'error');
         return;
       }
-      
+
       this.isProcessRunning = true;
 
       // dispatching event to upate the ui without importing it
@@ -2348,7 +2349,7 @@
     const target = document.getElementById(action?.targetId)?.value;
     // id of currently selected source element
     const source = document.querySelector('input[name="source"]:checked').id;
-    
+
     // check filter validity
     const filtersForm = document.querySelector('.filters-form');
     if (!filtersForm.checkValidity()){
@@ -2362,13 +2363,13 @@
       f.elements["type"].value = "video";
       // this dummy filter will trigger additional RPC calls to obtain file size
       f.elements["lowerBoundarySize"].value = 69;
-      updateUI();      
+      updateUI();
     }
 
 
     // Parsed filter object
     const filter = getForm('.filters-form');
-    
+
     // Parsed settings object
     const apiSettings = getForm('.settings-form');
     if (!userConfirmation(action, filter)) return;
