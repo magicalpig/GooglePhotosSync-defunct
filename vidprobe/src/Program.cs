@@ -1,9 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using VideoDataAccess.Services;
-using VideoDataAccess.Models;
 using VidProbe.Services;
 
 namespace VidProbe;

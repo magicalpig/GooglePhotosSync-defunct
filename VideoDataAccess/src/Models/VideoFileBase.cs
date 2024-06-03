@@ -62,7 +62,9 @@ public abstract class VideoFileBase
       return false;
 
     VideoFileBase other = (VideoFileBase)obj;
-    return Name == other.Name &&
+    return 
+      Owner == other.Owner &&
+      Name == other.Name &&
       CreatedDate == other.CreatedDate &&
       Description == other.Description &&
       Duration == other.Duration &&

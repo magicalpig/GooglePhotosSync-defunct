@@ -22,9 +22,8 @@ public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider?
     return new VideoContext(GetConnectionString(), currentUserService);
   }
 
-  public VideoContext CreateVideoContext()
+  internal VideoContext CreateVideoContext()
   {
-    throw new NotImplementedException();
     return new VideoContext(GetConnectionString(), null);
   }
 

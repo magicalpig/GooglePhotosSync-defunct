@@ -3,19 +3,24 @@ using VideoDataAccess.Models;
 using Microsoft.Extensions.Logging;
 using FFMpegCore;
 using Microsoft.WindowsAPICodePack.Shell;
-using Microsoft.WindowsAPICodePack.Shell.PropertySystem;
 using System.Diagnostics;
-using Newtonsoft.Json;
 
 namespace VidProbe.Services;
 
-public class LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<LocalFileSystemScraper> logger)
+public class LocalFileSystemScraper
 {
-  private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
-  private readonly VidProbeSettings _settings = settings;
-  private readonly ILogger<LocalFileSystemScraper> _logger = logger;
-  private static readonly object ShellFileLock = new();
-  
+  private readonly VideoContext _db;
+  private readonly VidProbeSettings _settings;
+  private readonly ILogger<LocalFileSystemScraper> _logger;
+
+  public LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<LocalFileSystemScraper> logger)
+  {
+    _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
+    _settings = settings;
+    _logger = logger;
+    SetFfmpegBinPath();
+  }
+
   public async Task ScrapeVideos()
   {
     _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.GetCurrentUser() ?? "<no user set>");
@@ -29,14 +34,14 @@ public class LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSetti
     if (string.IsNullOrEmpty(sourceDir)) 
     {
       string err = "appsettings.json needs to define SourceDir under the \"Settings\" key.";
-      _logger.LogError(err);
+      _logger.LogError("{message}", err);
       throw new ArgumentException(err);
     }
     
     if (!Directory.Exists(sourceDir))
     {
       string err = $"Directory {sourceDir} does not exist.";
-      _logger.LogError(err);
+      _logger.LogError("{message}", err);
       throw new ArgumentException(err);
     }
     
@@ -54,92 +59,107 @@ public class LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSetti
       filePaths = filePaths.Take(maxFilesLocal.Value);
     }
     
-    // convert file paths to video records
-    SetFfmpegBinPath();
     // Allow up to `n` concurrent metadata fetches which involve invoking ffprobe bin.
     SemaphoreSlim semaphore = new(Math.Max(Environment.ProcessorCount - 1, 1));
     List<Task> tasks = [];
     List<VideoFileWindows> records = [];
+    List<VideoFileWindows> ffmpegAttempts = [];
     Stopwatch stopwatch = new();
     stopwatch.Start();
+    
     foreach (string filePath in filePaths)
     {
-      tasks.Add(Task.Run(async () => 
+      VideoFileWindows videoFile = new()
       {
-        await semaphore.WaitAsync();
-        
-        try
-        {
-          VideoFileWindows videoFile = new()
+        Path = filePath,
+        Folder = Path.GetDirectoryName(filePath) ?? @"/",
+        Name = Path.GetFileName(filePath),
+        Size = new FileInfo(filePath).Length,
+        LastModified = File.GetLastWriteTime(filePath)
+      };
+
+      records.Add(videoFile);
+      
+      VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);  
+      
+      // use ffmpeg to get metadata. We put this on the new videoFile object even if we have an existing
+      // database record. Later, any existing record will be synced to match videoFile.
+      bool existingIsOutdated = existing is not null && existing.OlderThan(videoFile);
+      _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, existing?.LacksMetadata(), existingIsOutdated);
+      if (existing is null || existingIsOutdated)
+      {
+        ffmpegAttempts.Add(videoFile);
+        tasks.Add(
+          Task.Run(async () => 
           {
-              Path = filePath,
-              Folder = Path.GetDirectoryName(filePath) ?? @"/",
-              Name = Path.GetFileName(filePath),
-              Size = new FileInfo(filePath).Length
-          };
-          await AttachFFProbeMetadata(filePath, videoFile);
-          records.Add(videoFile);
-        }
-        finally
-        {
-          semaphore.Release();
-        }
-      }));
+            await semaphore.WaitAsync();
+            try
+            {
+              await AttachFFProbeMetadata(videoFile);
+            }
+            finally
+            {
+              semaphore.Release();
+            }
+          })
+        );
+      }
     }
     await Task.WhenAll(tasks);
     stopwatch.Stop();
-    _logger.LogDebug("FFProbe metadata attachment took {elapsed} milliseconds", stopwatch.ElapsedMilliseconds);  
+    if (tasks.Count > 0)
+    {
+      _logger.LogDebug("FFProbe metadata attachment for {ffmpegCallCount} videos took {elapsed} milliseconds", tasks.Count, stopwatch.ElapsedMilliseconds);  
+    }
   
+
     // Use MicrosoftAPICodePack to get metadata ffprobe couldn't find.
-    // It is not threadsafe so we're doing this outside the async task pool.
+    // It is not threadsafe so these calls will be made synchronously.
+    // We're only doing this on videos we previous ran ffmpeg against.
     stopwatch.Reset();
-    stopwatch.Start();
-    int countShell = 0;
+    int countShell = 0;    
+    foreach (var videoFile in ffmpegAttempts.Where(v => v.LacksMetadata()))
+    {      
+      countShell++;
+      stopwatch.Start();
+      AttachShellMetadata(videoFile);
+      stopwatch.Stop();
+    }
+    if (countShell > 0)
+    {
+      _logger.LogDebug("Shell metadata attachment for {countShell} videos took {elapsed} milliseconds", countShell, stopwatch.ElapsedMilliseconds);
+    }
+
     foreach (var videoFile in records)
     {
-      if (!DidFFProbeFillAllMetadata(videoFile))
+      VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);
+      if (existing is not null)
       {
-        countShell++;
-        AttachShellMetadata(videoFile.Path, videoFile);
-      }
-    }
-    stopwatch.Stop();
-    _logger.LogDebug("Shell metadata attachment for {countShell} videos took {elapsed} milliseconds", countShell, stopwatch.ElapsedMilliseconds);
-
-    _logger.LogInformation("We processed {count} local videos", records.Count);
-    
-    records.ForEach(r =>
-    {
-      VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == r.Path);
-      if (existing is null)
-      {
-        _logger.LogDebug("new video from local file system {filepath}", r.Path);
-        _db.Add(r);
-      }
-      else if (!r.Equals(existing))
-      {
-        _logger.LogDebug("updating local video: {filepath}", r.Path);
-        existing.SyncTo(r);
-        _db.Update(existing);
+        // this tells us a metadata lookup was performed. The new metadata is in videoFile right now.
+        if (existing.OlderThan(videoFile))
+        {
+          _logger.LogDebug("updating local video: {filepath}", existing.Path);
+          existing.SyncTo(videoFile);
+        }
+        else
+        {
+          _logger.LogDebug("no change to local video: {filepath}", existing.Path);
+        }        
       }
       else
       {
-        _logger.LogDebug("no change to local video: {filepath}", r.Path);
+        _logger.LogDebug("new video from local file system {filepath}", videoFile.Path);
+        _db.Add(videoFile);
       }
-    });
+    }
+    _logger.LogInformation("We processed {count} local videos", records.Count);
     _db.SaveChanges();
   }
 
-  private static bool DidFFProbeFillAllMetadata(VideoFileWindows videoFile)
-  {
-    return videoFile.CreatedDate is not null 
-      && videoFile.DurationMs is not null && videoFile.DurationMs > 0
-      && videoFile.Codec is not null
-      && !string.IsNullOrEmpty(videoFile.Description);
-  }
 
-  private async Task AttachFFProbeMetadata(string filePath, VideoFileWindows videoFile)
+  private async Task AttachFFProbeMetadata(VideoFileWindows videoFile)
   {
+    string filePath = videoFile.Path;
     // use ffprobe to get whatever metadata we can
     IMediaAnalysis? mediaInfo = null;
     try { mediaInfo = await FFProbe.AnalyseAsync(filePath); }
@@ -172,8 +192,9 @@ public class LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSetti
   }
 
   // use MicrosoftAPICodePack to get metadata
-  private void AttachShellMetadata(string filePath, VideoFileWindows videoFile)
-  {    
+  private void AttachShellMetadata(VideoFileWindows videoFile)
+  {
+    string filePath = videoFile.Path;
     var shellFile = ShellFile.FromFilePath(filePath.Replace("/", @"\"));;
     var propertiesSystem = shellFile.Properties.System;
     

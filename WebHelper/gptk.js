@@ -1517,13 +1517,6 @@
 
 
       let json = JSON.stringify(minimalMediaItems, null, 2);
-      try {
-        await textToClipboard(json);
-        log('The JSON is now in your clipboard', 'success');
-      } catch (err) {
-        log('could not put the JSON in your clipboard. Check dev tools for the JSON.. ' + err, 'error');
-        console.log(json);
-      }
 
       log('Sending video data to server');
       let response;
@@ -1611,21 +1604,6 @@
     }
   }
 
-  async function textToClipboard(t) {
-    let textarea = document.createElement('textarea');
-    textarea.value = t;
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      await navigator.clipboard.writeText(textarea.value);
-    }
-    catch(err) {
-      throw err;
-    }
-    finally {
-      document.body.removeChild(textarea);
-    }
-  }
 
   function dateToHHMMSS(date) {
     // Options for formatting
