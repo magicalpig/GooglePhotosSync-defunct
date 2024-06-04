@@ -64,9 +64,17 @@ public class LocalFileSystemScraper
     List<Task> tasks = [];
     List<VideoFileWindows> records = [];
     List<VideoFileWindows> ffmpegAttempts = [];
+    HashSet<string> processedDirectories = [];
     Stopwatch stopwatch = new();
     stopwatch.Start();
-    
+
+    bool forceMetadata = false;
+    if (_settings.ForceMetadataRefresh.HasValue && _settings.ForceMetadataRefresh.Value)
+    {
+      forceMetadata = true;
+      _logger.LogWarning("Getting metadata for all local video files because ForceMetadataRefresh setting is true.");
+    }
+
     foreach (string filePath in filePaths)
     {
       VideoFileWindows videoFile = new()
@@ -77,16 +85,22 @@ public class LocalFileSystemScraper
         Size = new FileInfo(filePath).Length,
         LastModified = File.GetLastWriteTime(filePath)
       };
+      processedDirectories.Add(videoFile.Folder);
 
       records.Add(videoFile);
       
-      VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);  
+      bool getMetadata = forceMetadata;
+      if (!getMetadata)
+      {
+        VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);
+        bool existingIsOutdated = existing is not null && existing.OlderThan(videoFile);
+        _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, existing?.LacksMetadata(), existingIsOutdated);
+        getMetadata = existing is null || existingIsOutdated;
+      } 
       
       // use ffmpeg to get metadata. We put this on the new videoFile object even if we have an existing
       // database record. Later, any existing record will be synced to match videoFile.
-      bool existingIsOutdated = existing is not null && existing.OlderThan(videoFile);
-      _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, existing?.LacksMetadata(), existingIsOutdated);
-      if (existing is null || existingIsOutdated)
+      if (getMetadata)
       {
         ffmpegAttempts.Add(videoFile);
         tasks.Add(
@@ -148,12 +162,30 @@ public class LocalFileSystemScraper
       }
       else
       {
-        _logger.LogDebug("new video from local file system {filepath}", videoFile.Path);
+        _logger.LogInformation("new video from local file system {filepath}", videoFile.Path);
         _db.Add(videoFile);
       }
     }
     _logger.LogInformation("We processed {count} local videos", records.Count);
     _db.SaveChanges();
+
+    // Remove any videos from the database that are no longer on the local file system
+    // Only do this if app was permitted to look at all local files under the specified directory.
+    if (_settings.FileLimitLocal is null || _settings.FileLimitLocal == 0)
+    {
+      _logger.LogInformation("Removing videos from database that are no longer on the local file system");
+      IEnumerable<VideoFileWindows> dbVideos = _db.GetWindowsVideos();
+      foreach (string dir in processedDirectories)
+      {
+        var missingRecords = dbVideos.Where(v => v.Folder == dir && !filePaths.Contains(v.Path));
+        foreach (var m in missingRecords)
+        { 
+          _logger.LogWarning("Video {m.Path} is missing from the file system", m.Path);
+          _db.Remove(m);
+        }
+      }
+      _db.SaveChanges();
+    }
   }
 
 

@@ -8,4 +8,5 @@ public class VidProbeSettings
     public int? PageLimitGoogle { get; set; }
     public string? GoogleAPIClientId  { get; set; }
     public string? LocalUserId { get; set; }
+    public bool? ForceMetadataRefresh { get; set; }
 }
