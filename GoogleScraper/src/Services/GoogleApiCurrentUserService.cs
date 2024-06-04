@@ -1,6 +1,6 @@
 using VideoDataAccess.Services;
 
-namespace VidProbe.Services;
+namespace GoogleScraper.Services;
 public class GoogleApiCurrentUserService(GoogleLoginService googleLoginService) : ICurrentUserService
 {
   private readonly Lazy<Task<string>> _userId = new(googleLoginService.GetUserIdAsync);

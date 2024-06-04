@@ -4,16 +4,18 @@ using Microsoft.Extensions.Logging;
 using FFMpegCore;
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Diagnostics;
+using ScraperCommon;
 
-namespace VidProbe.Services;
 
-public class LocalFileSystemScraper
+namespace LocalScraper.Services;
+
+public class Scraper
 {
   private readonly VideoContext _db;
-  private readonly VidProbeSettings _settings;
-  private readonly ILogger<LocalFileSystemScraper> _logger;
+  private readonly Settings _settings;
+  private readonly ILogger<Scraper> _logger;
 
-  public LocalFileSystemScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<LocalFileSystemScraper> logger)
+  public Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger)
   {
     _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
     _settings = settings;

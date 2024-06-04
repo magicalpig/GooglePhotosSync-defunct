@@ -1,25 +1,11 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using VideoDataAccess.Services;
-using VidProbe.Services;
 
-namespace VidProbe;
-
-class Program
-{  
-  public static async Task Main()
-  {
-    var host = CreateHost();
- 
-    var googleScraper = host.Services.GetRequiredService<GoogleScraper>();
-    await googleScraper.ScrapeVideos();
-
-    var localFileSystemScraper = host.Services.GetRequiredService<LocalFileSystemScraper>();
-    await localFileSystemScraper.ScrapeVideos();
-  }
-
-  private static IHost CreateHost()
+namespace ScraperCommon;
+public class ScraperHostBuilder
+{
+  public static IHost CreateHost(Action<IServiceCollection> configureAdditionalServices)
   {
     // This does a lot of things like loading configuration, logging, setting up a services host.
     // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
@@ -28,35 +14,16 @@ class Program
       .ConfigureServices((hostContext, services) =>
       {
         var config = hostContext.Configuration;
-        var settings = BuildSettingsFromConfig(config, hostContext);
+        var settings = BuildSettingsFromConfig(config, hostContext);        
+        services.AddSingleton(settings);
         
-        services
-          .AddSingleton(settings)
-          // We need the same http client to be used by GoogleScraper and GooglePhotosService
-          // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use.        
-          .AddSingleton<HttpClient>(
-            new HttpClient()
-            {
-              BaseAddress = new Uri(CasCap.Models.RequestUris.BaseAddress)
-            })
-
-          .AddSingleton<VideoContextFactory>()
-                    
-          .AddSingleton<GoogleScraper>()
-          // can't use DI extension method, IServiceCollection.AddGooglePhotos, because it will
-          // give the GooglePhotosService a new http client but we need it to share one with GoogleScraper
-          .AddSingleton<CasCap.Services.GooglePhotosService>()
-          .AddSingleton<GoogleLoginService>()
-          .AddSingleton<GoogleApiCurrentUserService>()
-
-          .AddSingleton<LocalFileSystemScraper>()
-          .AddSingleton<LocalComputerCurrentUserService>()
-        ;
-      });
+        configureAdditionalServices(services);    
+      }
+    );
     return builder.Build();
   }
 
-  private static VidProbeSettings BuildSettingsFromConfig(IConfiguration config, HostBuilderContext? hostContext)
+  private static Settings BuildSettingsFromConfig(IConfiguration config, HostBuilderContext? hostContext)
   {
     if (hostContext is not null && hostContext.HostingEnvironment.IsDevelopment())
     {
@@ -70,7 +37,7 @@ class Program
       }
     }
     
-    var settings = new VidProbeSettings();
+    var settings = new Settings();
     config.GetSection("Settings").Bind(settings);
 
     // load machine-specific settings from the "MachineSettings" key of appsettings*.json

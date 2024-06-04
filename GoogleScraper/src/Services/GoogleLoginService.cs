@@ -2,17 +2,18 @@ using Microsoft.Extensions.Logging;
 using Google.Apis.Auth.OAuth2;
 using Newtonsoft.Json;
 using System.Net.Http.Headers;
+using ScraperCommon;
 
-namespace VidProbe.Services;
+namespace GoogleScraper.Services;
 
 // not using CasCap library to login (get auth tokens) with google because it required client secret to be sent.
 // The http client is a singleton throughout entire app. It is also used by CasCap library.
 // When login is successful, the access token is set on the shared http client as a header.
-public class GoogleLoginService(ILogger<GoogleLoginService> logger, VidProbeSettings settings, HttpClient sharedClient)
+public class GoogleLoginService(ILogger<GoogleLoginService> logger, Settings settings, HttpClient sharedClient)
 {
   // injected dependencies
   private readonly ILogger<GoogleLoginService> _logger = logger;
-  private readonly VidProbeSettings _settings = settings;
+  private readonly Settings _settings = settings;
   private readonly HttpClient _sharedClient = sharedClient;
 
   private bool _isLoggedIn = false;

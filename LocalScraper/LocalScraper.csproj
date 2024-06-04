@@ -17,9 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CasCap.Apis.GooglePhotos" Version="3.0.0" />
     <PackageReference Include="FFMpegCore" Version="5.1.0" />
-    <PackageReference Include="Google.Apis.Auth" Version="1.67.0" />
     <PackageReference Include="Microsoft-WindowsAPICodePack-Core" Version="1.1.5" />
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
     <PackageReference Include="microsoft.EntityFrameworkCore.Design" Version="8.0.4">
@@ -37,5 +35,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VideoDataAccess\VideoDataAccess.csproj" />
+    <ProjectReference Include="..\ScraperCommon\ScraperCommon.csproj" />
   </ItemGroup>  
 </Project>

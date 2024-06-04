@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-namespace VidProbe;
+namespace LocalScraper;
 public static partial class VideoFileTester
 {
   [GeneratedRegex(@"^(\.mp4|\.m4v|\.mkv|\.avi|\.3gp|\.wmv|\.mov)$", RegexOptions.IgnoreCase, "en-US")]

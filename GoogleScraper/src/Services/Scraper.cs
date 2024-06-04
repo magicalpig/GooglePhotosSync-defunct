@@ -4,14 +4,15 @@ using CasCap.Services;
 using VideoDataAccess.Models;
 using Microsoft.Extensions.Logging;
 using VideoDataAccess.Services;
+using ScraperCommon;
 
-namespace VidProbe.Services;
+namespace GoogleScraper.Services;
 //'The provider for the source IQueryable doesn't implement IDbAsyncQueryProvider. Only providers that implement IDbAsyncQueryProvider can be used for Entity Framework asynchronous operations
-public class GoogleScraper(VideoContextFactory dbFactory, VidProbeSettings settings, ILogger<GoogleScraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
 {
   // Injected dependencies
-  private readonly VidProbeSettings _settings = settings;
-  private readonly ILogger<GoogleScraper> _logger = logger;
+  private readonly Settings _settings = settings;
+  private readonly ILogger<Scraper> _logger = logger;
   private readonly GooglePhotosService _googleService = service;
   private readonly GoogleLoginService _googleLoginService = googleLoginService;
   private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<GoogleApiCurrentUserService>();

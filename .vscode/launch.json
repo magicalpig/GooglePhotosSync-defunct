@@ -28,11 +28,11 @@
       }
     },
     {
-      "name": "Launch Vidprobe",
+      "name": "Launch LocalScraper",
       "type": "coreclr",
       "request": "launch",
-      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
-      "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
+      "cwd": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/LocalScraper.dll",
       "args": [],
       "stopAtEntry": false,
       "console": "internalConsole",
@@ -47,11 +47,30 @@
       "justMyCode": false
     },
     {
-      "name": "Launch Vidprobe Prodictopm",
+      "name": "Launch GoogleScraper",
       "type": "coreclr",
       "request": "launch",
-      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
-      "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
+      "cwd": "${workspaceFolder}/GoogleScraper/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/GoogleScraper/bin/Debug/net8.0-windows/GoogleScraper.dll",
+      "args": [],
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "logging": {
+        "moduleLoad": false,
+        "trace": "verbose"
+      },
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Launch LocalScraper Production",
+      "type": "coreclr",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/LocalScraper.dll",
       "args": [],
       "stopAtEntry": false,
       "console": "internalConsole",
@@ -64,12 +83,12 @@
       "justMyCode": false
     },
     {
-      "name": "Build and Launch Vidprobe",
+      "name": "Build and Launch LocalScraper",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "cwd": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/",
-      "program": "${workspaceFolder}/vidprobe/bin/Debug/net8.0-windows/vidprobe.dll",
+      "cwd": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/LocalScraper/bin/Debug/net8.0-windows/LocalScraper.dll",
       "args": [],      
       "stopAtEntry": false,
       "console": "internalConsole",

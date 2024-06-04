@@ -1,5 +1,5 @@
-namespace VidProbe;
-public class VidProbeSettings
+namespace ScraperCommon;
+public class Settings
 {
     public string? SourceDir { get; set; }
     public bool FreshDatabase { get; set; }
