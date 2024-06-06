@@ -22,12 +22,60 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] }
   };
 
-  
+  public async Task ScrapeAlbums() 
+  {
+    _logger.LogInformation("Scraping Google Photos for albums as user {user}", _db.GetCurrentUser() ?? "<no user set>");
+    await _googleLoginService.LoginAsync();
+    
+    List<Album> albums = await _googleService.GetAlbumsAsync();
+    List<GoogleAlbum> existingAlbums = await _db.GoogleAlbums.ToListAsync();
+    albums.ForEach(a => 
+    {
+      var existing = existingAlbums.FirstOrDefault(ea => ea.Id == a.id);
+      if (existing is not null)
+      {
+        _logger.LogDebug("Album {title} already in database", a.title);
+        if (existing.Title != a.title || existing.ItemCount != a.mediaItemsCount)        
+        {
+          _logger.LogDebug("Updating album {title} in database", a.title);
+          existing.Title = a.title;
+          existing.Url = a.productUrl;
+          existing.ItemCount = a.mediaItemsCount;
+        }
+        else
+        {
+          _logger.LogDebug("No changes to album {title} in database", a.title);
+        }
+      }
+      else
+      {
+        _db.Add(new GoogleAlbum() 
+          { 
+            Id = a.id,
+            Title = a.title,
+            Owner = _db.GetCurrentUser() ?? "<no user set>",
+            Url = a.productUrl,
+            ItemCount = a.mediaItemsCount
+          }
+        );
+        _logger.LogDebug("Added album {title} to database", a.title);
+      }
+    });
+
+    var albumsToDelete = existingAlbums.Where(ea => !albums.Any(a => a.id == ea.Id)).ToList();
+    foreach (var albumToDelete in albumsToDelete)
+    {
+      _db.GoogleAlbums.Remove(albumToDelete);
+      _logger.LogInformation("Removed album {title} from database", albumToDelete.Title);
+    }
+    await _db.SaveChangesAsync();
+  }
 
   // Most metadata comes from making calls to the REST API
   // but the file size, duration, and short id come from the jsonToDb project
   //  (which uses a browser-based script to call the batchexecute RPC API)
-  public async Task ScrapeVideos() {
+  public async Task ScrapeVideos() 
+  {
     await _googleLoginService.LoginAsync();
         
     if (_settings.FreshDatabase)
@@ -58,7 +106,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
   private void OfferDelete(List<string> idsScraped)
   {    
-    var videosInDatabase = _db.GetGoogleVideos().ToList();
+    var videosInDatabase = _db.GoogleVideos.ToList();
     List<VideoFileGoogle> videosNotInGoogle = [];
     foreach (var video in videosInDatabase)
     {
@@ -112,7 +160,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       // process the video
       // add to db if new
       // update in db if exist
-      VideoFileGoogle? existing = await _db.GetGoogleVideos().FirstOrDefaultAsync(g => g.GoogleId == v.GoogleId);
+      VideoFileGoogle? existing = await _db.GoogleVideos.FirstOrDefaultAsync(g => g.GoogleId == v.GoogleId);
       if (existing is null)
       {
         _logger.LogDebug("new video from Google: {id}", v.GoogleId);

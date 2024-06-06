@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CsvHelper.Configuration;
 
@@ -25,6 +24,9 @@ public class VideoFileGoogle : VideoFileBase
     }
   }
 
+  
+  [NotFromGoogleRestAPI]
+  public ICollection<AlbumMembership>? AlbumMemberships { get; set; }
 
   public override bool Equals(object? obj)
   {

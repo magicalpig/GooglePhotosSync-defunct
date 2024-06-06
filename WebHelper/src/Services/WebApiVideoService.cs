@@ -27,7 +27,7 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
     // the redirect response.
     // The presence of this property indicates a second attempt to update a _context record for a video
     // scraped from web browser.
-    var thisUsersVideos = _db.GetGoogleVideos();
+    var thisUsersVideos = _db.GoogleVideos;
     VideoFileGoogle? googleVideo = await thisUsersVideos.FirstOrDefaultAsync(gv => gv.RpcId == inVideo.RpcId || gv.GoogleId == inVideo.GoogleId);
     
     if (googleVideo == null)
@@ -80,7 +80,7 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
 
   public async Task<List<string>> GetGoogleVideosWithNoRpcId()
   {
-    return await _db.GetGoogleVideos().Where(gv => string.IsNullOrEmpty(gv.RpcId)).Select(gv => gv.GoogleId).ToListAsync();
+    return await _db.GoogleVideos.Where(gv => string.IsNullOrEmpty(gv.RpcId)).Select(gv => gv.GoogleId).ToListAsync();
   }
 }
 

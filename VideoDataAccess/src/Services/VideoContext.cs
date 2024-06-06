@@ -7,12 +7,14 @@ namespace VideoDataAccess.Services;
 // A VideoContext should only be created by a VideoContextFactory: internal constructor
 public class VideoContext : DbContext
 {
-  public DbSet<VideoFileGoogle> GoogleVideos { get; set; }
-  public DbSet<VideoFileWindows> WindowsVideos { get; set; }
+  public DbSet<VideoFileGoogle> GoogleVideos => GetVideos<VideoFileGoogle>();
+  public DbSet<VideoFileWindows> WindowsVideos => GetVideos<VideoFileWindows>();
+  public DbSet<GoogleAlbum> GoogleAlbums { get; set; }
+  public DbSet<AlbumMembership> AlbumMemberships { get; set; }
 
   private readonly string _connectionString;
   private readonly ICurrentUserService? _currentUserService;
-  internal VideoContext (string connectionString, ICurrentUserService? currentUserService)
+  internal VideoContext(string connectionString, ICurrentUserService? currentUserService)
   {
     _connectionString = connectionString;
     _currentUserService = currentUserService;
@@ -28,6 +30,8 @@ public class VideoContext : DbContext
       .HasKey(v => new { v.Path, v.Owner });
     modelBuilder.Entity<VideoFileGoogle>()
       .HasKey(v => new { v.GoogleId, v.Owner });
+    modelBuilder.Entity<GoogleAlbum>()
+      .HasKey(a => new { a.Id, a.Owner });
     
     if (_currentUserService is not null)
     {
@@ -35,20 +39,25 @@ public class VideoContext : DbContext
           .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
       modelBuilder.Entity<VideoFileWindows>()
           .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+      modelBuilder.Entity<GoogleAlbum>()
+          .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
     }
+
+    modelBuilder.Entity<AlbumMembership>()
+      .HasKey(am => new { am.VideoFileGoogleId, am.GoogleAlbumId });
+    modelBuilder.Entity<AlbumMembership>()
+      .HasOne(am => am.VideoFileGoogle)
+      .WithMany(vfg => vfg.AlbumMemberships)
+      .HasForeignKey(am => new { am.VideoFileGoogleId, am.Owner });
+    modelBuilder.Entity<AlbumMembership>()
+      .HasOne(am => am.GoogleAlbum)
+      .WithMany(ga => ga.AlbumMemberships)
+      .HasForeignKey(am => new { am.GoogleAlbumId, am.Owner });
   }  
 
   private DbSet<T> GetVideos<T>() where T : VideoFileBase
   {
     return Set<T>();
-  }
-  public DbSet<VideoFileGoogle> GetGoogleVideos()
-  {
-    return GetVideos<VideoFileGoogle>();
-  }
-  public DbSet<VideoFileWindows> GetWindowsVideos()
-  {
-    return GetVideos<VideoFileWindows>();
   }
 
   // not an override of base class RemoveRange because that takes IEnumerable<object>
@@ -85,6 +94,16 @@ public class VideoContext : DbContext
       video.Owner = _currentUserService.UserId;
     }    
     base.Update(video);
+  }
+
+  // ALBUM
+  public void Add(GoogleAlbum album)
+  {
+    if (_currentUserService is not null)
+    {
+      album.Owner = _currentUserService.UserId;
+    }
+    base.Add(album);
   }
 
   public string? GetCurrentUser()

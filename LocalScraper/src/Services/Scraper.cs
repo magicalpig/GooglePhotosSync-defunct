@@ -94,7 +94,7 @@ public class Scraper
       bool getMetadata = forceMetadata;
       if (!getMetadata)
       {
-        VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);
+        VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
         bool existingIsOutdated = existing is not null && existing.OlderThan(videoFile);
         _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, existing?.LacksMetadata(), existingIsOutdated);
         getMetadata = existing is null || existingIsOutdated;
@@ -148,7 +148,7 @@ public class Scraper
 
     foreach (var videoFile in records)
     {
-      VideoFileWindows? existing = _db.GetWindowsVideos().FirstOrDefault(w => w.Path == videoFile.Path);
+      VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
       if (existing is not null)
       {
         // this tells us a metadata lookup was performed. The new metadata is in videoFile right now.
@@ -176,7 +176,7 @@ public class Scraper
     if (_settings.FileLimitLocal is null || _settings.FileLimitLocal == 0)
     {
       _logger.LogInformation("Removing videos from database that are no longer on the local file system");
-      IEnumerable<VideoFileWindows> dbVideos = _db.GetWindowsVideos();
+      IEnumerable<VideoFileWindows> dbVideos = _db.WindowsVideos;
       foreach (string dir in processedDirectories)
       {
         var missingRecords = dbVideos.Where(v => v.Folder == dir && !filePaths.Contains(v.Path));

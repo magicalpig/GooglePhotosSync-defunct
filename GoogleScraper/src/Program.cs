@@ -29,6 +29,7 @@ class Program
  
     var googleScraper = host.Services.GetRequiredService<Scraper>();
     await googleScraper.ScrapeVideos();
+    await googleScraper.ScrapeAlbums();
   }
 }
 

@@ -17,6 +17,49 @@ namespace VideoDataAccess.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
 
+            modelBuilder.Entity("VideoDataAccess.Models.AlbumMembership", b =>
+                {
+                    b.Property<string>("VideoFileGoogleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GoogleAlbumId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("VideoFileGoogleId", "GoogleAlbumId");
+
+                    b.HasIndex("GoogleAlbumId", "Owner");
+
+                    b.HasIndex("VideoFileGoogleId", "Owner");
+
+                    b.ToTable("AlbumMemberships");
+                });
+
+            modelBuilder.Entity("VideoDataAccess.Models.GoogleAlbum", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id", "Owner");
+
+                    b.ToTable("GoogleAlbums");
+                });
+
             modelBuilder.Entity("VideoDataAccess.Models.VideoFileGoogle", b =>
                 {
                     b.Property<string>("GoogleId")
@@ -94,6 +137,35 @@ namespace VideoDataAccess.Migrations
                     b.HasKey("Path", "Owner");
 
                     b.ToTable("WindowsVideos");
+                });
+
+            modelBuilder.Entity("VideoDataAccess.Models.AlbumMembership", b =>
+                {
+                    b.HasOne("VideoDataAccess.Models.GoogleAlbum", "GoogleAlbum")
+                        .WithMany("AlbumMemberships")
+                        .HasForeignKey("GoogleAlbumId", "Owner")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoDataAccess.Models.VideoFileGoogle", "VideoFileGoogle")
+                        .WithMany("AlbumMemberships")
+                        .HasForeignKey("VideoFileGoogleId", "Owner")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GoogleAlbum");
+
+                    b.Navigation("VideoFileGoogle");
+                });
+
+            modelBuilder.Entity("VideoDataAccess.Models.GoogleAlbum", b =>
+                {
+                    b.Navigation("AlbumMemberships");
+                });
+
+            modelBuilder.Entity("VideoDataAccess.Models.VideoFileGoogle", b =>
+                {
+                    b.Navigation("AlbumMemberships");
                 });
 #pragma warning restore 612, 618
         }
