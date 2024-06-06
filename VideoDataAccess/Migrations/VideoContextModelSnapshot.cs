@@ -52,9 +52,6 @@ namespace VideoDataAccess.Migrations
                     b.Property<string>("Title")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Url")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id", "Owner");
 
                     b.ToTable("GoogleAlbums");

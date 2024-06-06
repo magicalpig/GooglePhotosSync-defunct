@@ -39,7 +39,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         {
           _logger.LogDebug("Updating album {title} in database", a.title);
           existing.Title = a.title;
-          existing.Url = a.productUrl;
           existing.ItemCount = a.mediaItemsCount;
         }
         else
@@ -54,7 +53,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             Id = a.id,
             Title = a.title,
             Owner = _db.GetCurrentUser() ?? "<no user set>",
-            Url = a.productUrl,
             ItemCount = a.mediaItemsCount
           }
         );
