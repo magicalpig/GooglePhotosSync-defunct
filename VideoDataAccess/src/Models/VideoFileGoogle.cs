@@ -59,6 +59,22 @@ public class VideoFileGoogle : VideoFileBase
       prop.SetValue(this, prop.GetValue(other));
     }
   }
+
+  public static bool IsRestApiMetadataDifferent(VideoFileGoogle a, VideoFileGoogle b)
+  {
+    var propsToCompare = typeof(VideoFileGoogle).GetProperties()
+      .Where(p => !Attribute.IsDefined(p, typeof(NotFromGoogleRestAPIAttribute)));
+
+    foreach (var prop in propsToCompare)
+    {
+      if (!Equals(prop.GetValue(a), prop.GetValue(b)))
+      {
+        Console.WriteLine($"Property {prop.Name} differs between {a.GoogleId} and {b.GoogleId}");
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 // For CSV output

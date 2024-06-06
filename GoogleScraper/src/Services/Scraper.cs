@@ -167,7 +167,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       // possibly update the existing google video database record
       else
       {
-        if (!v.Equals(existing))
+        // duration, size, and url are all going to be null from the REST API
+        if (VideoFileGoogle.IsRestApiMetadataDifferent(v, existing))
         {          
           _logger.LogDebug("updating google video: {id}", v.GoogleId);
           // copies all possible fields that come back from the REST API into existing record
@@ -178,4 +179,5 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     }
     return newlyScrapedIds;
   }
+
 }
