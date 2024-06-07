@@ -1,12 +1,15 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace VideoDataAccess.Models;
 
-public class AlbumMembership(string videoFileGoogleId, string googleAlbumId)
+public class AlbumMembership(string videoFileGoogleId, string googleAlbumId) : OwnableBase
 {
   public string VideoFileGoogleId { get; set; } = videoFileGoogleId;
-  public required VideoFileGoogle VideoFileGoogle { get; set; }
+  public  VideoFileGoogle VideoFileGoogle { get; set; } = default!;
 
   public string GoogleAlbumId { get; set; } = googleAlbumId;
-  public required GoogleAlbum GoogleAlbum { get; set; }
+  public GoogleAlbum GoogleAlbum { get; set; } = default!;
 
-  public required string Owner { get; set; }
+  [NotMapped]
+  public bool FoundInLatestScrape { get; set; }
 }

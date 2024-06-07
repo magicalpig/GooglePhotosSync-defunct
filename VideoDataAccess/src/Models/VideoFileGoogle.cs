@@ -6,15 +6,14 @@ namespace VideoDataAccess.Models;
 public class VideoFileGoogle : VideoFileBase
 { 
   private static readonly string ShortUrlBase = "https://photos.google.com/photo/";
+  [FromGoogleRestApi]
   public required string GoogleId { get; set; }
 
   // only gets set when setting RPCId
-  [NotFromGoogleRestAPI]
   public string? Url { get; private set; }
 
   // this is the ID used in browser when calling the batchExecute RPC API
   private string? _rpcId;
-  [NotFromGoogleRestAPI]
   public string? RpcId 
   { 
     get { return _rpcId; }
@@ -23,9 +22,7 @@ public class VideoFileGoogle : VideoFileBase
       Url = ShortUrlBase + value;
     }
   }
-
   
-  [NotFromGoogleRestAPI]
   public ICollection<AlbumMembership>? AlbumMemberships { get; set; }
 
   public override bool Equals(object? obj)
@@ -52,7 +49,7 @@ public class VideoFileGoogle : VideoFileBase
   {
     // skip attempting to sync any properties that are not from the Google REST API    
     var propsToUpdate = GetType().GetProperties()
-      .Where(p => !Attribute.IsDefined(p, typeof(NotFromGoogleRestAPIAttribute)));
+      .Where(p => Attribute.IsDefined(p, typeof(FromGoogleRestApiAttribute)));
     
     foreach (var prop in propsToUpdate)
     {
@@ -63,7 +60,7 @@ public class VideoFileGoogle : VideoFileBase
   public static bool IsRestApiMetadataDifferent(VideoFileGoogle a, VideoFileGoogle b)
   {
     var propsToCompare = typeof(VideoFileGoogle).GetProperties()
-      .Where(p => !Attribute.IsDefined(p, typeof(NotFromGoogleRestAPIAttribute)));
+      .Where(p => Attribute.IsDefined(p, typeof(FromGoogleRestApiAttribute)));
 
     foreach (var prop in propsToCompare)
     {

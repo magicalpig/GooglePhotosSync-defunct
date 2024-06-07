@@ -4,12 +4,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace VideoDataAccess.Models;
 
 [Table("GoogleAlbums")]
-public class GoogleAlbum
+public class GoogleAlbum : OwnableBase
 {
   [Key]
   [DatabaseGenerated(DatabaseGeneratedOption.None)]
   public required string Id { get; set; }
-  public required string Owner { get; set; }
   public string? Title { get; set; }
   // TODO: Maybe put the base url in config file
   [NotMapped]

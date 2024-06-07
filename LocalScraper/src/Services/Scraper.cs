@@ -25,7 +25,7 @@ public class Scraper
 
   public async Task ScrapeVideos()
   {
-    _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.GetCurrentUser() ?? "<no user set>");
+    _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.GetCurrentUser() ?? "unknown");
     if (_settings.FreshDatabase)
     {
       _logger.LogInformation("Per the FreshDatabase setting, clearing out any Windows videos from database");
@@ -71,7 +71,7 @@ public class Scraper
     stopwatch.Start();
 
     bool forceMetadata = false;
-    if (_settings.ForceMetadataRefresh.HasValue && _settings.ForceMetadataRefresh.Value)
+    if (_settings.ForceMetadataRefresh)
     {
       forceMetadata = true;
       _logger.LogWarning("Getting metadata for all local video files because ForceMetadataRefresh setting is true.");

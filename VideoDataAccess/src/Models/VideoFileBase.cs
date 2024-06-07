@@ -1,25 +1,16 @@
 namespace VideoDataAccess.Models;
-// For google videos, this attribute tells us that the REST API
-// does not return a particular property.
-[AttributeUsage(AttributeTargets.Property)]
-public class NotFromGoogleRestAPIAttribute : Attribute
-{
-}
 
-public abstract class VideoFileBase
+public abstract class VideoFileBase : OwnableBase
 {
-  [NotFromGoogleRestAPI]
-  public string? Owner { get; internal set; }  // to be set by an ICurrentUserService class
+  [FromGoogleRestApi]
   public string? Name { get; set; } = String.Empty;
+  [FromGoogleRestApi]
   public string? Description { get; set; }
-  [NotFromGoogleRestAPI]
   public long? Size { get; set; }
   
   // this does not get set directly. It gets set when you set the milliseconds version
-  [NotFromGoogleRestAPI]
   public TimeSpan? Duration { get; private set; }
   private long? _durationMs;
-  [NotFromGoogleRestAPI]
   public long? DurationMs
   {
     get { return _durationMs; }
@@ -36,6 +27,7 @@ public abstract class VideoFileBase
   }
 
   private DateTime? _createdDate;
+  [FromGoogleRestApi]
   public DateTime? CreatedDate
   {
     get { return _createdDate; }

@@ -36,11 +36,13 @@ public class VideoContext : DbContext
     if (_currentUserService is not null)
     {
       modelBuilder.Entity<VideoFileGoogle>()
-          .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+        .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
       modelBuilder.Entity<VideoFileWindows>()
-          .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+        .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
       modelBuilder.Entity<GoogleAlbum>()
-          .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
+        .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
+      modelBuilder.Entity<AlbumMembership>()
+        .HasQueryFilter(am => am.Owner == _currentUserService.UserId);
     }
 
     modelBuilder.Entity<AlbumMembership>()
@@ -78,32 +80,24 @@ public class VideoContext : DbContext
   }
 
   // hide some methods from the DbContext base class
-  public new void Add<T>(T video) where T : VideoFileBase
-  {
-    if (_currentUserService is not null)
-    {
-      video.Owner = _currentUserService.UserId;
-    }
-    base.Add(video);
+  public new void Add<T>(T entity) where T : OwnableBase
+  {    
+    base.Add(AttachOwner(entity));
   }
   
-  public new void Update<T>(T video) where T : VideoFileBase
+  public new void Update<T>(T entity) where T : OwnableBase
   {
-    if (_currentUserService is not null)
-    {
-      video.Owner = _currentUserService.UserId;
-    }    
-    base.Update(video);
+    base.Update(AttachOwner(entity));
   }
 
-  // ALBUM
-  public void Add(GoogleAlbum album)
+  private OwnableBase AttachOwner(OwnableBase entity)
   {
     if (_currentUserService is not null)
     {
-      album.Owner = _currentUserService.UserId;
+      var entry = Entry(entity); // converting to EntityEntry helps DbContext track changes
+      entry.Property("Owner").CurrentValue = _currentUserService.UserId;
     }
-    base.Add(album);
+    return entity;
   }
 
   public string? GetCurrentUser()

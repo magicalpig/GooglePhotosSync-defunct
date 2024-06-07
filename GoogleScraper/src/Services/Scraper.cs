@@ -5,9 +5,10 @@ using VideoDataAccess.Models;
 using Microsoft.Extensions.Logging;
 using VideoDataAccess.Services;
 using ScraperCommon;
+using System.Diagnostics;
 
 namespace GoogleScraper.Services;
-//'The provider for the source IQueryable doesn't implement IDbAsyncQueryProvider. Only providers that implement IDbAsyncQueryProvider can be used for Entity Framework asynchronous operations
+
 public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
 {
   // Injected dependencies
@@ -16,7 +17,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
   private readonly GooglePhotosService _googleService = service;
   private readonly GoogleLoginService _googleLoginService = googleLoginService;
   private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<GoogleApiCurrentUserService>();
-    
+  private Stopwatch? stopwatch;
   private static readonly Filter _videoOnlyFilter = new()
   {
     mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] }
@@ -24,9 +25,19 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
   public async Task ScrapeAlbums() 
   {
-    _logger.LogInformation("Scraping Google Photos for albums as user {user}", _db.GetCurrentUser() ?? "<no user set>");
+// #TODO TEMP
+    stopwatch = new Stopwatch();
+    stopwatch.Start();
+
+    if (_settings.ScrapeGoogleAlbums is false)
+    {
+      _logger.LogInformation("ScrapeGoogleAlbums setting is false, so not scraping Google Photos albums from REST API");
+      return;
+    }
+    _logger.LogInformation("Scraping Google Photos albums as user {user}", _db.GetCurrentUser() ?? "unknown");
     await _googleLoginService.LoginAsync();
     
+    // get most recent list of albums as well as the existing list for comparison
     List<Album> albums = await _googleService.GetAlbumsAsync();
     List<GoogleAlbum> existingAlbums = await _db.GoogleAlbums.ToListAsync();
     albums.ForEach(a => 
@@ -34,10 +45,10 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       var existing = existingAlbums.FirstOrDefault(ea => ea.Id == a.id);
       if (existing is not null)
       {
-        _logger.LogDebug("Album {title} already in database", a.title);
+        _logger.LogDebug("Album {title} already in database", existing.Title);
         if (existing.Title != a.title || existing.ItemCount != a.mediaItemsCount)        
         {
-          _logger.LogDebug("Updating album {title} in database", a.title);
+          _logger.LogDebug("Updating album {title} in database", existing.Title);
           existing.Title = a.title;
           existing.ItemCount = a.mediaItemsCount;
         }
@@ -52,7 +63,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
           { 
             Id = a.id,
             Title = a.title,
-            Owner = _db.GetCurrentUser() ?? "<no user set>",
             ItemCount = a.mediaItemsCount
           }
         );
@@ -60,13 +70,84 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       }
     });
 
-    var albumsToDelete = existingAlbums.Where(ea => !albums.Any(a => a.id == ea.Id)).ToList();
+    var albumsToDelete = existingAlbums.Where(ea => !albums.Any(a => a.id == ea.Id));
     foreach (var albumToDelete in albumsToDelete)
     {
       _db.GoogleAlbums.Remove(albumToDelete);
       _logger.LogInformation("Removed album {title} from database", albumToDelete.Title);
     }
+    
     await _db.SaveChangesAsync();
+    _logger.LogDebug("Saved changes to albums table");
+    existingAlbums = null!; // free up memory
+    
+
+    // Now for the video-to-album membership
+    List<AlbumMembership> existingAlbumMemberships = await _db.AlbumMemberships.ToListAsync();
+    IAsyncEnumerable<AlbumMembership> albumMemberships = ScrapeAlbumMemberships(albums.Select(a => a.id).Reverse());
+    
+    await foreach (var m in albumMemberships)
+    {
+      _logger.LogDebug("An album membership was returned at {timestamp}", DateTime.UtcNow);
+      var existing = existingAlbumMemberships.FirstOrDefault(e => e.GoogleAlbumId == m.GoogleAlbumId && e.VideoFileGoogleId == m.VideoFileGoogleId);
+      if (existing is null)
+      {
+        _db.Add(m);
+      }
+      else
+      {
+        existing.FoundInLatestScrape = true;
+      }
+    };
+
+    var membershipsToDelete = existingAlbumMemberships.Where(e => !e.FoundInLatestScrape);
+    _db.RemoveRange(membershipsToDelete);
+
+    await _db.SaveChangesAsync();
+  }
+
+  private async IAsyncEnumerable<AlbumMembership> ScrapeAlbumMemberships(IEnumerable<string> albumIds)
+  {
+    _logger.LogInformation("{elapsed} -- Starting scrape of album contents",  stopwatch?.Elapsed);
+    // want to stay below 10 queries per second
+    Queue<DateTime> queryTimes = new();
+    int pageSize = 100;
+    foreach (var albumId in albumIds)
+    {
+      _logger.LogDebug("{elapsed} -- Scraping album {albumId}", stopwatch?.Elapsed, albumId);
+      // Google's API does not allow setting of any filters in conjuction with specifying an album id
+      IAsyncEnumerable<MediaItem> mediaItems = _googleService.GetMediaItemsByAlbumAsync(albumId, pageSize);
+      _logger.LogDebug("{elapsed} -- Got media items for album {albumId}", stopwatch?.Elapsed,  albumId);
+      int itemCountThisCall = 0;
+      await foreach(var mediaItem in mediaItems)
+      {
+        itemCountThisCall++;
+     
+        if (mediaItem.isVideo)
+        {     
+          yield return new AlbumMembership(mediaItem.id, albumId);
+        }
+      }
+      
+      int apiCallsMadeThisCall = (int)Math.Ceiling((double)itemCountThisCall / pageSize);
+      _logger.LogDebug("{elapsed} -- Made {apiCallsMadeThisCall} API calls to get all items in album",  stopwatch?.Elapsed, apiCallsMadeThisCall);
+      for (int i = 0; i < apiCallsMadeThisCall; i++)
+      {
+        queryTimes.Enqueue(DateTime.UtcNow);
+        // Remove timestamps more than 1 second old
+        while(queryTimes.Count > 0 && (DateTime.UtcNow - queryTimes.Peek()).TotalSeconds > 1)
+        {
+          queryTimes.Dequeue();
+        }
+        _logger.LogDebug("Count of api calls made in last second: {count}", queryTimes.Count);
+        // Don't allow 10 queries to be made in 1 second
+        if (queryTimes.Count > 1)
+        {
+          _logger.LogDebug("Sleeping for 2 seconds to avoid rate limiting");
+          await Task.Delay(4000); // Wait for 1 second
+        }
+      }
+    }
   }
 
   // Most metadata comes from making calls to the REST API
@@ -74,6 +155,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
   //  (which uses a browser-based script to call the batchexecute RPC API)
   public async Task ScrapeVideos() 
   {
+    if (_settings.ScrapeGoogleVideos is false)
+    {
+      _logger.LogInformation("ScrapeGoogleVideos setting is false, so not scraping Google Photos from REST API");
+      return;
+    }
     await _googleLoginService.LoginAsync();
         
     if (_settings.FreshDatabase)
@@ -84,7 +170,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     
     int? pageLimit = _settings.PageLimitGoogle;
     if (pageLimit > 0)
-      _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _db.GetCurrentUser() ?? "<no user set>");
+      _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _db.GetCurrentUser() ?? "unknown");
     else
       pageLimit = null;
 
@@ -101,6 +187,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       OfferDelete(idsScraped);
     }
   }
+
 
   private void OfferDelete(List<string> idsScraped)
   {    
@@ -125,15 +212,15 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         _db.RemoveRange(videosNotInGoogle);
         _db.SaveChanges();
         _logger.LogInformation("Deleted videosNotInGoogle from the database.");
-        Console.WriteLine("List of GoogleIds for records just deleted:");
+        _logger.LogInformation("List of GoogleIds for records just deleted:");
         foreach (var video in videosNotInGoogle)
         {
-            Console.WriteLine(video.GoogleId);
+            _logger.LogInformation("{videoId}", video.GoogleId);
         }
       }
       else
       {
-        Console.WriteLine("videosNotInGoogle will not be deleted from the database.");
+        _logger.LogInformation("videosNotInGoogle will not be deleted from the database.");
       }
     }
   }
