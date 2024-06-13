@@ -26,7 +26,6 @@ namespace VideoDataAccess.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Owner")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("VideoFileGoogleId", "GoogleAlbumId");
@@ -78,7 +77,8 @@ namespace VideoDataAccess.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
 
                     b.Property<string>("RpcId")
                         .HasColumnType("TEXT");
@@ -126,7 +126,8 @@ namespace VideoDataAccess.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
 
                     b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
@@ -140,15 +141,11 @@ namespace VideoDataAccess.Migrations
                 {
                     b.HasOne("VideoDataAccess.Models.GoogleAlbum", "GoogleAlbum")
                         .WithMany("AlbumMemberships")
-                        .HasForeignKey("GoogleAlbumId", "Owner")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("GoogleAlbumId", "Owner");
 
                     b.HasOne("VideoDataAccess.Models.VideoFileGoogle", "VideoFileGoogle")
                         .WithMany("AlbumMemberships")
-                        .HasForeignKey("VideoFileGoogleId", "Owner")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("VideoFileGoogleId", "Owner");
 
                     b.Navigation("GoogleAlbum");
 

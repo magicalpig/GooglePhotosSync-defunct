@@ -5,19 +5,17 @@ using VideoDataAccess.Models;
 using Microsoft.Extensions.Logging;
 using VideoDataAccess.Services;
 using ScraperCommon;
-using System.Diagnostics;
 
 namespace GoogleScraper.Services;
 
-public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service, GoogleLoginService googleLoginService)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service)
 {
   // Injected dependencies
   private readonly Settings _settings = settings;
   private readonly ILogger<Scraper> _logger = logger;
   private readonly GooglePhotosService _googleService = service;
-  private readonly GoogleLoginService _googleLoginService = googleLoginService;
   private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<GoogleApiCurrentUserService>();
-  private Stopwatch? stopwatch;
+  
   private static readonly Filter _videoOnlyFilter = new()
   {
     mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] }
@@ -25,17 +23,12 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
   public async Task ScrapeAlbums() 
   {
-// #TODO TEMP
-    stopwatch = new Stopwatch();
-    stopwatch.Start();
-
     if (_settings.ScrapeGoogleAlbums is false)
     {
       _logger.LogInformation("ScrapeGoogleAlbums setting is false, so not scraping Google Photos albums from REST API");
       return;
     }
-    _logger.LogInformation("Scraping Google Photos albums as user {user}", _db.GetCurrentUser() ?? "unknown");
-    await _googleLoginService.LoginAsync();
+    _logger.LogInformation("Scraping Google Photos albums as user {user}", _db.GetCurrentUser() ?? "unknown");    
     
     // get most recent list of albums as well as the existing list for comparison
     List<Album> albums = await _googleService.GetAlbumsAsync();
@@ -108,16 +101,15 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
   private async IAsyncEnumerable<AlbumMembership> ScrapeAlbumMemberships(IEnumerable<string> albumIds)
   {
-    _logger.LogInformation("{elapsed} -- Starting scrape of album contents",  stopwatch?.Elapsed);
     // want to stay below 10 queries per second
     Queue<DateTime> queryTimes = new();
     int pageSize = 100;
     foreach (var albumId in albumIds)
     {
-      _logger.LogDebug("{elapsed} -- Scraping album {albumId}", stopwatch?.Elapsed, albumId);
+      _logger.LogDebug("Scraping album {albumId}", albumId);
       // Google's API does not allow setting of any filters in conjuction with specifying an album id
       IAsyncEnumerable<MediaItem> mediaItems = _googleService.GetMediaItemsByAlbumAsync(albumId, pageSize);
-      _logger.LogDebug("{elapsed} -- Got media items for album {albumId}", stopwatch?.Elapsed,  albumId);
+      _logger.LogDebug("Got media items for album {albumId}", albumId);
       int itemCountThisCall = 0;
       await foreach(var mediaItem in mediaItems)
       {
@@ -130,7 +122,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       }
       
       int apiCallsMadeThisCall = (int)Math.Ceiling((double)itemCountThisCall / pageSize);
-      _logger.LogDebug("{elapsed} -- Made {apiCallsMadeThisCall} API calls to get all items in album",  stopwatch?.Elapsed, apiCallsMadeThisCall);
+      _logger.LogDebug("Made {apiCallsMadeThisCall} API calls to get all items in album", apiCallsMadeThisCall);
       for (int i = 0; i < apiCallsMadeThisCall; i++)
       {
         queryTimes.Enqueue(DateTime.UtcNow);
@@ -141,10 +133,10 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         }
         _logger.LogDebug("Count of api calls made in last second: {count}", queryTimes.Count);
         // Don't allow 10 queries to be made in 1 second
-        if (queryTimes.Count > 1)
+        if (queryTimes.Count > 7)
         {
           _logger.LogDebug("Sleeping for 2 seconds to avoid rate limiting");
-          await Task.Delay(4000); // Wait for 1 second
+          await Task.Delay(2000);
         }
       }
     }
@@ -160,7 +152,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
       _logger.LogInformation("ScrapeGoogleVideos setting is false, so not scraping Google Photos from REST API");
       return;
     }
-    await _googleLoginService.LoginAsync();
         
     if (_settings.FreshDatabase)
     {
@@ -205,6 +196,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     if (count > 0)
     {
       _logger.LogDebug("Total cases of video present in db but not on google photos: {count}", count);
+      _logger.LogDebug("List of GoogleIds for records not found in latest scrape:");
+      foreach (var video in videosNotInGoogle)
+      {
+        _logger.LogDebug("{videoId}", video.GoogleId);
+      }
       Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
       string? response = Console.ReadLine();
       if (response?.Equals("Y", StringComparison.OrdinalIgnoreCase) ?? false)

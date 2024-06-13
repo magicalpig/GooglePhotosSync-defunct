@@ -1500,6 +1500,20 @@
       return mediaInfoData;
     }
 
+    async confirmWebServerRunning() {
+      try {
+        let userId = window.WIZ_global_data.oPEP7c;
+        let response = await fetch('http://localhost:5222/api/RpcScrapedVideos', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', 'X-UserId': userId }
+        });
+      } catch (error) {
+        log('Error:' + error.toString(), 'error');
+        return false;
+      }
+      return true;
+    }
+
     async sendToServer(mediaItems) {
       const confirmMessageFormatter = (count) => `There were ${count} records in the database with no RPC ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to RPC IDs ?`;
 
@@ -1545,9 +1559,10 @@
       // Continue function only if the server's response indicates it has records missing RPC ID.
       // recordsWithNoRpcId is a list of REST IDs for such database records.
       if (!data.recordsWithNoRpcId?.length > 0) {
-        if (data.recordsNotFound?.length)
+        if (data.recordsNotFound?.length) {
           alert("Some records could not be updated because there was no match for their RPC ID.\n" +
             "Normally we'd offer to try to convert REST IDs to RPC IDs for these records, but the server didn't indicate any records were missing RPC ID");
+        }
         return;
       }
       const confirmMessage = confirmMessageFormatter(data.recordsWithNoRpcId.length);
@@ -1565,8 +1580,12 @@
             // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
             // but we still want to let the server know of the id mapping
             const mediaItem = minimalMediaItems.find(item => item.rpcId === rpcId);
+            if (mediaItem === undefined) {
+                log('Mapped REST ID ' + restId + ' to rpc ID ' + rpcId + ' but scrape did not give a media item with this rpc ID', 'error');
+            }
             return { ...mediaItem, googleId: restId };
-          });
+          })
+          .filter(g => g.rpcId && g.googleId);
         // send the fixed media items to the server
         this.sendToServer(fixedMediaItems);
       }
@@ -2341,7 +2360,7 @@
       f.elements["type"].value = "video";
       // this dummy filter will trigger additional RPC calls to obtain file size
       f.elements["lowerBoundarySize"].value = 69;
-      updateUI();
+      updateUI();      
     }
 
 
@@ -2351,6 +2370,16 @@
     // Parsed settings object
     const apiSettings = getForm('.settings-form');
     if (!userConfirmation(action, filter)) return;
+
+    if (actionId === 'scrapeVideos') {
+      log('Confirming web server is running');
+      if (await apiUtils.confirmWebServerRunning()) {
+        log('Web server is running');
+      } else {
+        log('Web server is not running', 'error');
+        return;
+      }
+    }
 
     // Disable action bar while process is running
     disableActionBar(true);

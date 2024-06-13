@@ -55,6 +55,14 @@ public class VideoContext : DbContext
       .HasOne(am => am.GoogleAlbum)
       .WithMany(ga => ga.AlbumMemberships)
       .HasForeignKey(am => new { am.GoogleAlbumId, am.Owner });
+
+    // make Name propeties case-insensitive
+    modelBuilder.Entity<VideoFileGoogle>()
+      .Property(v => v.Name)
+      .UseCollation("NOCASE");
+    modelBuilder.Entity<VideoFileWindows>()
+      .Property(v => v.Name)
+      .UseCollation("NOCASE");
   }  
 
   private DbSet<T> GetVideos<T>() where T : VideoFileBase
@@ -69,6 +77,18 @@ public class VideoContext : DbContext
     {
       videos = videos.Where(v => v.Owner == _currentUserService.UserId);
     }
+
+    // remove album associations
+    foreach (var video in videos.OfType<VideoFileGoogle>())
+    {
+      var albumMemberships = AlbumMemberships
+        .Where(am => am.VideoFileGoogleId == video.GoogleId)
+        .ToList();
+
+      RemoveRange(albumMemberships);
+    }
+
+
     base.RemoveRange(videos);
     SaveChanges();
   }
