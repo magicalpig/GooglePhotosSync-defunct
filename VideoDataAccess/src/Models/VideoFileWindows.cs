@@ -42,7 +42,7 @@ public class VideoFileWindows : VideoFileBase
   }
 
   // likely to used on an existing db record against one discovered during a filesystem scrape
-  public bool OlderThan(VideoFileWindows other)
+  public bool ModifiedBefore(VideoFileWindows other)
   {
     return !LastModified.HasValue || other.LastModified.HasValue && LastModified < other.LastModified;
   }

@@ -9,23 +9,30 @@ The purpose of this app is to identify
 - review metadata that might need correcting.
 
 ## Usage Notes
-Much of the metadata about Google Videos can be scraped from its REST API. The `vidprobe` project does that. It identifies videos by what we call the REST ID. These are about 98 (or maybe exactly?) characters long.  
+Much of the metadata about Google Videos can be scraped from its REST API. The `GoogleScraper` project does that. It identifies videos by what we call the REST ID. These are about 98 (or maybe exactly?) characters long.  
 This technique does not give us the size or duration of the videos. To get this, we need to use our web browsers to interact with the Google Photos website. We run Tampermonkey to make the gptk.js script available within the browser. I have modified this script so it has a "Scrape Videos" action. More details on this later when I discuss the 2 different video ID schemes Google Photos uses.
 
 ## Solution Layout
-There are 3 projects here:  
+There are 4 projects here:  
 | | |
 | --- | --- |
 | **VideoDataAccess** | Establishes the data models and the database connection (DbContext in .NET parlance). Included by the other projects |
-| **vidprobe** | Scans local filesystem for videos and connects to GP API to get its videos. Stores newly discovered videos into database. Update existing records. Offers to delete record from db if no longer present in GP |
+| **LocalScaper** | Scans local filesystem for videos; collects metadata using ffprobe and shell32; stores in database; deletes records for videos not found in scanned directory |
+| **GoogleScraper** | Connects to Google Photos API to get information on videos and albums; stores in database; offers to delete record from db if no longer present in GP |
 | **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. Used for obtaining Google Photos metadata not available through Google's REST API |
 
 ## Database
 ### Table: GoogleVideos
-Primary key is ID used by REST API (the one vidprobe connects to) AND owner (email of Google Photos account). Some of the data comes from the REST API (running vidprobe) while some of it comes from JSON files obtained through the browser using the batchExecute RPC API.
+Primary key is ID used by REST API (the one GoogleScraper connects to) AND owner (email of Google Photos account). Some of the data comes from the REST API (running GoogleScraper) while some of it comes from JSON files obtained through the browser using the batchExecute RPC API.
 
 ### Table: WindowsVideos
-Primary key is full path to video AND owner (user running the vidprobe app).
+Primary key is full path to video AND owner (user running the LocalScraper app).
+
+### Table: GoogleAlbums
+Names and IDs of albums on Google Photos.
+
+### AlbumMemberships
+Connects GoogleVideos to GoogleAlbums.
 
 ## Prerequisites
 - relies on ffprobe.exe which is part of the ffmpeg distribution. So install ffmpeg and then set `FFMpegPath` in the application`{environment}`.json file.
@@ -34,7 +41,7 @@ Primary key is full path to video AND owner (user running the vidprobe app).
   The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
 ## Configuration
 - **VideoDataAccess** Uses DbSettings.json to define database file as `DbFileName`
-- **vidprobe** Example:
+- **Local and Google Scrapers** These use appsettings.json to define settings. Here is an example of what the appsettings.json file should look like:
 ```json{
   "Settings": {
     "LocalUserId": "Rob",
@@ -67,10 +74,12 @@ Primary key is full path to video AND owner (user running the vidprobe app).
   | PageLimitGoogle | how many pages of GP videos to query |
   | FreshDatabase | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when program starts | 
   | GoogleClientId | client id issued after registering app on Google Cloud Console|
-  | SourceDir |  local folder in which to look (subdirectories will be included)|
+  | SourceDir |  local folder in which to look (subdirectories will be included). This can be defined at the top level or at the machine level to override top level|
   | FFMpegPath | Location of ffmpeg (more importantly ffprobe) executable|
   
 Notice that under `MachineSettings`, the keys at the next level down are machine names. This allows you to configure the program differently depending on where it's being run from. This machine name doesn't need to match actual case and can exceed the 15-char limit for NETBIOS names (although only first 15 chars will be examined when trying to locate correct key to use at runtime).
+
+Remember that if you are in development and use appsettings.Development.json, appsettings.json will still be loaded first and then any settings in the development file will overwrite those in the main file.
   
 
 ## About the Google Photos API and the need for web browser

@@ -2,6 +2,7 @@
 using ScraperCommon;
 using VideoDataAccess.Services;
 using LocalScraper.Services;
+using Microsoft.Extensions.Logging;
 
 namespace LocalScraper;
 
@@ -15,12 +16,23 @@ class Program
       // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use      
       services.AddSingleton<Scraper>()
         .AddSingleton<LocalComputerCurrentUserService>()
-        .AddSingleton<VideoContextFactory>();
+        .AddSingleton<VideoContextFactory>()
+        .AddSingleton<FFMpegHelper>();
     });
  
 
     var localFileSystemScraper = host.Services.GetRequiredService<Scraper>();
-    await localFileSystemScraper.ScrapeVideos();
+    try 
+    {
+        await localFileSystemScraper.ScrapeVideos();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex.Message);
+        var logger = host.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while scraping videos.");
+    }
+
   }
 }
 
