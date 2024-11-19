@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using ScraperCommon;
 using GoogleScraper.Services;
-using VideoDataAccess.Services;
+using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
+using VideoToolsCore.DataAccess;
 using GoogleScraper.Auth;
 using System.Net.Http.Headers;
 using System.Net;
@@ -17,11 +17,11 @@ class Program
 {  
   public static async Task Main()
   {
-    var host = ScraperHostBuilder.CreateHost(services =>
+    var host = MyHostBuilder.CreateHost<Settings>(services =>
     {
       services.AddTransient<AuthorizationHandler>();
       
-      // This creates http clients for GooglePhotosService and GoogleApiCurrentUserService to use.
+      // This creates http clients for CasCap's GooglePhotosService and my GoogleApiCurrentUserService to use.
       // Before making any request, it will set the Authorization header by calling GetAuthHeader on GoogleLoginService.
       // GoogleLoginService does not use this http client; it uses one created by the google oauth library.
       // Most of the configuration comes from the CasCap library.

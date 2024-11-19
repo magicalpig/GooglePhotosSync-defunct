@@ -1,10 +1,9 @@
-using VideoDataAccess.Services;
-using VideoDataAccess.Models;
+using VideoToolsCore.Models;
+using VideoToolsCore.Services;
+using VideoToolsCore.DataAccess;
 using Microsoft.Extensions.Logging;
-
 using Microsoft.WindowsAPICodePack.Shell;
 using System.Diagnostics;
-using ScraperCommon;
 using FFMpegCore;
 
 

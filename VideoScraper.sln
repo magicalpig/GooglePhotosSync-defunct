@@ -3,15 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoDataAccess", "VideoDataAccess\VideoDataAccess.csproj", "{D43A41A0-BB36-45AD-A6B9-23A1E4C8EA67}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoogleScraper", "GoogleScraper\GoogleScraper.csproj", "{0E417FB1-DC4B-440D-85E0-28D7A527A211}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebHelper", "WebHelper\WebHelper.csproj", "{CE69827A-4B83-4A05-95BF-F709024895A8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScraperCommon", "ScraperCommon\ScraperCommon.csproj", "{F8E22017-3040-4A22-A62A-7CCAD649AEBB}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LocalScraper", "LocalScraper\LocalScraper.csproj", "{FA1785A4-11C2-48AC-8FB0-3C27B8B86CA8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoToolsCore", "VideoToolsCore\VideoToolsCore.csproj", "{9B1F4A05-156B-43C2-9AEC-32052943275C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,10 +17,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D43A41A0-BB36-45AD-A6B9-23A1E4C8EA67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D43A41A0-BB36-45AD-A6B9-23A1E4C8EA67}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D43A41A0-BB36-45AD-A6B9-23A1E4C8EA67}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D43A41A0-BB36-45AD-A6B9-23A1E4C8EA67}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0E417FB1-DC4B-440D-85E0-28D7A527A211}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0E417FB1-DC4B-440D-85E0-28D7A527A211}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E417FB1-DC4B-440D-85E0-28D7A527A211}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -31,14 +25,14 @@ Global
 		{CE69827A-4B83-4A05-95BF-F709024895A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CE69827A-4B83-4A05-95BF-F709024895A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CE69827A-4B83-4A05-95BF-F709024895A8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F8E22017-3040-4A22-A62A-7CCAD649AEBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F8E22017-3040-4A22-A62A-7CCAD649AEBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F8E22017-3040-4A22-A62A-7CCAD649AEBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F8E22017-3040-4A22-A62A-7CCAD649AEBB}.Release|Any CPU.Build.0 = Release|Any CPU
 		{FA1785A4-11C2-48AC-8FB0-3C27B8B86CA8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FA1785A4-11C2-48AC-8FB0-3C27B8B86CA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FA1785A4-11C2-48AC-8FB0-3C27B8B86CA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FA1785A4-11C2-48AC-8FB0-3C27B8B86CA8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B1F4A05-156B-43C2-9AEC-32052943275C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B1F4A05-156B-43C2-9AEC-32052943275C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B1F4A05-156B-43C2-9AEC-32052943275C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B1F4A05-156B-43C2-9AEC-32052943275C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

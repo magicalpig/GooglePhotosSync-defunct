@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Google.Apis.Auth.OAuth2;
 using System.Net.Http.Headers;
-using ScraperCommon;
+
 
 namespace GoogleScraper.Auth;
 

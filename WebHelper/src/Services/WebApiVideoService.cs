@@ -1,5 +1,5 @@
-using VideoDataAccess.Services;
-using VideoDataAccess.Models;
+using VideoToolsCore.Models;
+using VideoToolsCore.DataAccess;
 using WebHelper.Models;
 using Microsoft.EntityFrameworkCore;
 

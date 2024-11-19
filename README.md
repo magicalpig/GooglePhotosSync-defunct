@@ -1,7 +1,7 @@
-# VideoScraper
+# VideoScraper Solution
 Gather info about videos uploaded to Google Photos and present in local filesystem.  
 Details are stored in a SQLite database named video_files.db.
-The purpose of this app is to identify 
+The purpose of this solution is to identify 
 - videos present on Google Photos but not local file system.
 - videos present on local file system but no yet uploaded to GP.
 - differences in GP and local copy of video (maybe I re-encoded a video from AVC to HEVC)
@@ -16,7 +16,7 @@ This technique does not give us the size or duration of the videos. To get this,
 There are 4 projects here:  
 | | |
 | --- | --- |
-| **VideoDataAccess** | Establishes the data models and the database connection (DbContext in .NET parlance). Included by the other projects |
+| **VideoToolsCore** | Base functionality used by multiple projects including database access, models, helpers for building the app (loading configuration files, logging), and helpers for scraping local filesystem metadata using FFMpeg |
 | **LocalScaper** | Scans local filesystem for videos; collects metadata using ffprobe and shell32; stores in database; deletes records for videos not found in scanned directory |
 | **GoogleScraper** | Connects to Google Photos API to get information on videos and albums; stores in database; offers to delete record from db if no longer present in GP |
 | **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. Used for obtaining Google Photos metadata not available through Google's REST API |
@@ -26,7 +26,7 @@ There are 4 projects here:
 Primary key is ID used by REST API (the one GoogleScraper connects to) AND owner (email of Google Photos account). Some of the data comes from the REST API (running GoogleScraper) while some of it comes from JSON files obtained through the browser using the batchExecute RPC API.
 
 ### Table: WindowsVideos
-Primary key is full path to video AND owner (user running the LocalScraper app).
+Primary key is full path to video AND owner (user running the LocalScraper app, Environment.UserName).
 
 ### Table: GoogleAlbums
 Names and IDs of albums on Google Photos.
@@ -35,13 +35,13 @@ Names and IDs of albums on Google Photos.
 Connects GoogleVideos to GoogleAlbums.
 
 ## Prerequisites
-- relies on ffprobe.exe which is part of the ffmpeg distribution. So install ffmpeg and then set `FFMpegPath` in the application`{environment}`.json file.
-- app needs to be registered on Google cloud console as a "UWP" app. After obtaining client id, store this in the application`{environment}`.json file as `GoogleClientId`.  
+- relies on ffprobe.exe which is part of the ffmpeg distribution. So install ffmpeg and then set `FFMpegPath` in the appsettings`{environment}`.json file.
+- app needs to be registered on Google cloud console as a "UWP" app. After obtaining client id, store this in the appsettings`{environment}`.json file as `GoogleClientId`.  
 
   The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
 ## Configuration
 - **VideoDataAccess** Uses DbSettings.json to define database file as `DbFileName`
-- **Local and Google Scrapers** These use appsettings.json to define settings. Here is an example of what the appsettings.json file should look like:
+- **Local and Google Scrapers** These use `appsettings.json` and `appsettings.Development.json` to define settings. Here is an example of what the appsettings.json file should look like:
 ```json{
   "Settings": {
     "LocalUserId": "Rob",
@@ -90,8 +90,8 @@ This GPTK script makes use of the poorly documented "batchExecute" RPC API of Go
 Where things get tricky is in the fact that Google's REST API uses a different ID format than what is used by their RPC API. The browser will send videos to our web server app identifying each video by its ID for the RPC API. When the web server app looks for a database record to update, those records will only have an ID used by the REST API. The web server app will respond to the web browser telling it all the REST API IDs that aren't yet paired up with an RPC API ID. The web browser will then make HEAD requests for videos where the REST ID is in the URL. Google Photos will respond with a redirect to a URL that includes the RPC ID instead. Now we have our mapping between REST ID and RPC ID. The videos are once again sent to our web server app this time including both the REST API ID and the RPC API ID. The web server app will be able to locate a record in the database using the REST API ID and set the newly scraped metadata as well as the RPC API ID.
 
 # Weirdness
-The GooglePhotosService from the CasCap.Apis.GooglePhotos library has to share the exact same HttpClient instance as is used by my GoogleConnector service. This is because GoogleConnector needs to perform the authorization to Google and when the authorization succeeds it needs to store an Authorization header as part of the HttpClient's default headers.  
-The reason GoogleConnector needs to perform the authorization is that the GooglePhotosService insists on there being a client secret. As stated before, we are trying to rely only on PKCE and we are not sending any client secret nor storing any client secret in the app.
+The GooglePhotosService from the CasCap.Apis.GooglePhotos library has to share the exact same HttpClient instance as is used by my GoogleApiCurrentUserService service. This is because GoogleApiCurrentUserService needs to perform the authorization to Google and when the authorization succeeds it needs to store an Authorization header as part of the HttpClient's default headers.  
+The reason GoogleApiCurrentUserService needs to perform the authorization is that the GooglePhotosService insists on there being a client secret. As stated before, we are trying to rely only on PKCE and we are not sending any client secret nor storing any client secret in the app.
 
 # TODO
 - document how to run from command line including passing arguments, setting Development/Production environment variable.
@@ -103,4 +103,6 @@ The database is accessed through a DbContext subclass, which is standard EF Core
 The `VideoContext` has an internal constructor and is meant to be created by a factory called `VideoContextFactory`. One of the factory methods is `CreateUserScopedVideoContext`. It takes a type param for the type of `ICurrentUserService` to use to find the current user's ID. The other factory method is just plain `CreateVideoContext`. This one is used when the current user's ID is not needed. I haven't thought of such a scenario yet so I throw an exception when that method is called.
 
 There's also something called the `DesignTimeDbContextFactory` which I had to create in order to give the EF Core tools a way to create a `VideoContext` (whose constructor is internal) when I'm running command line tools like `dotnet ef migrations add AddedNewColumn`.
+
+Access Tokens for the Google API will be stored in C:\Users\\&lt;username>\AppData\Roaming\Google.Apis.Auth. The token will be named according to the `LocalUserId` setting in appsettings.json.
 
