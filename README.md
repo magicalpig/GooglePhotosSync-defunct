@@ -40,12 +40,21 @@ Connects GoogleVideos to GoogleAlbums.
 
   The application was registered on google's cloud console and issued a client id. A client secret was also issued, but we don't want to use the client secret. Let's pretend this is an app that is distributed to the end user and meant to run on their personal computer. We can't give out the client secret. What we're doing instead is relying on the PKCE extension to OAuth2.0, which the Google authorization libraries enable by default. However, when I first registered this app on the Google Cloud console as type "desktop", I was having to send the client secret along to Google when the user authenticates and authorizes the app. To get around this, I registered the app again but as a "UWP" app and now when I use the client id associated with the "UWP" version, I'm not required to send the client secret.
 ## Configuration
-- **VideoDataAccess** Uses DbSettings.json to define database file as `DbFileName`
-- **Local and Google Scrapers** These use `appsettings.json` and `appsettings.Development.json` to define settings. Here is an example of what the appsettings.json file should look like:
+- **Global Settings** The `globalsettings.json` file lives in the root folder of the solution. (I'm talking about an environment used to develop, not a distribution environment.)
+- **Project-Specific Settings** Individual projects use `appsettings.json` and/or `appsettings.Development.json` to define settings. Those files live in the root folder of each project. (I'm talking about an environment used to develop, not a distribution environment.)
+
+**Precedence** 
+    Starting from lowest precendence to highest, settings are loaded from:
+    1. `globalsettings.json`
+    2. `appsettings.json`
+    3. `appsettings.Development.json` (if and only if you're running in development mode).     
+Within any or all of these settings files you can have machine-specific settings. These always take higher precedence than non-machine-specific settings and this takes precedence of the file-based precendence system.
+
+**Example**
+Here is an example of what a settings file could look like:
 ```json{
   "Settings": {
-    "LocalUserId": "Rob",
-    "FileLimitLocal": 1,  
+    "LocalUserId": "Rob",    
     "PageLimitGoogle": 1,  
     "FreshDatabase": false,
     "GoogleClientId": "your-client-id-here"
@@ -67,20 +76,27 @@ Connects GoogleVideos to GoogleAlbums.
   }
 }
 ```
-  | | |
-  | --- | --- |
-  | LocalUserId | has no effect other than storing access tokens to Google's API. This user id doesn't necessarily need to match a Google account or a local user account|
-  | FileLimitLocal | how many local video files to process| 
-  | PageLimitGoogle | how many pages of GP videos to query |
-  | FreshDatabase | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when program starts | 
-  | GoogleClientId | client id issued after registering app on Google Cloud Console|
-  | SourceDir |  local folder in which to look (subdirectories will be included). This can be defined at the top level or at the machine level to override top level|
-  | FFMpegPath | Location of ffmpeg (more importantly ffprobe) executable|
-  
-Notice that under `MachineSettings`, the keys at the next level down are machine names. This allows you to configure the program differently depending on where it's being run from. This machine name doesn't need to match actual case and can exceed the 15-char limit for NETBIOS names (although only first 15 chars will be examined when trying to locate correct key to use at runtime).
+Notice that under `MachineSettings`, the keys at the next level down are machine names. This allows you to configure the projects differently depending on where they're being run. This machine name doesn't need to match actual case and can exceed the 15-char limit for NETBIOS names (although only first 15 chars will be examined when trying to locate correct key to use at runtime).
 
 Remember that if you are in development and use appsettings.Development.json, appsettings.json will still be loaded first and then any settings in the development file will overwrite those in the main file.
   
+**Settings Explained**
+  | Setting | Project(s) | Description|
+  | --- | --- |  --- |
+  | DbFilePath | LocalScraper, GoogleScraper | Absolute path to SQLite database file |
+  | LocalUserId | GoogleScraper | has no effect other than storing access tokens to Google's API. This user id doesn't necessarily need to match a Google account or a local user account|
+  | FileLimit | LocalScraper |  project. how many local video files to process| 
+  | PageLimitGoogle | GoogleScraper | how many pages of GP videos to query |
+  | FreshDatabase | GoogleScraper, LocalScraper | whether to erase all records from the WindowsVideos and GoogleVideos tables in database when either app starts. I need to fix this so it only removed the type of records relevant to the app that is running | 
+  | GoogleClientId | GoogleScraper | client id issued after registering app on Google Cloud Console|
+  | SourceDir | LocalScraper | local folder in which to look (subdirectories will be included). This can be defined at the top level or at the machine level to override top level|
+  | FFMpegPath | LocalScraper | Location of ffmpeg (more importantly ffprobe) executable|
+  | ForceMetadataRefresh | LocalScraper | Always read metadata for local files even if the file exists in the database already and the last modified date hasn't changed.|
+  | ScrapeGoogleVideos | GoogleScraper | I think I need to remove this. | 
+  | ScrapeGoogleAlbums | GoogleScraper | Whether to get info about your GP albums |
+  | GoogleAPIClientId | GoogleScraper | client id issued after registering app on Google Cloud Console|
+  
+
 
 ## About the Google Photos API and the need for web browser
 The GP REST API doesn't expose video filesize or duration. To get these metadata, you manually browse to the GP website and you use something like Tampermonkey to run the user script included in this solution as gptk.js. This user script is a modified version of something I found online.

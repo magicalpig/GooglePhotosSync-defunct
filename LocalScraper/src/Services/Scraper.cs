@@ -47,11 +47,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
           .Select(Path.GetFullPath)
         ;
         // Possibly limit how many local video files are examined/saved into database
-        int? maxFilesLocal = _settings.FileLimitLocal;
-        if (maxFilesLocal > 0)
+        int? maxFiles = _settings.FileLimit;
+        if (maxFiles > 0)
         {
-            _logger.LogInformation("Limiting to {maxFilesLocal} local files", maxFilesLocal);
-            filePaths = filePaths.Take(maxFilesLocal.Value);
+            _logger.LogInformation("Limiting to {maxFiles} local files", maxFiles);
+            filePaths = filePaths.Take(maxFiles.Value);
         }
 
         List<Task> tasks = [];
@@ -135,7 +135,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
         // Remove any videos from the database that are no longer on the local file system
         // Only do this if app was permitted to look at all local files under the specified directory.
-        if (_settings.FileLimitLocal is null || _settings.FileLimitLocal == 0)
+        if (maxFiles is null || maxFiles == 0)
         {
             _logger.LogInformation("Removing videos from database that were previously found in the inspected path but are no longer there.");
             IEnumerable<VideoFileWindows> dbVideos = _db.WindowsVideos;
@@ -147,6 +147,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                     _logger.LogWarning("Video {m.Path} is missing from the file system", m.Path);
                     _db.Remove(m);
                 }
+                _logger.LogInformation("Removed {count} videos from database that were missing from the {directory} directory", missingRecords.Count(), dir);
             }
             _db.SaveChanges();
         }
