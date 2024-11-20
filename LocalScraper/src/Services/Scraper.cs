@@ -2,19 +2,19 @@ using VideoToolsCore.Models;
 using VideoToolsCore.Services;
 using VideoToolsCore.DataAccess;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAPICodePack.Shell;
+
 using System.Diagnostics;
-using FFMpegCore;
+
 
 
 namespace LocalScraper.Services;
 
-public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, FFMpegHelper ffmpegHelper)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, MetadataScraper metadataScraper)
 {
     private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
     private readonly Settings _settings = settings;
     private readonly ILogger<Scraper> _logger = logger;
-    private readonly FFMpegHelper _ffmpegHelper = ffmpegHelper;
+    private readonly MetadataScraper _metadataScraper = metadataScraper;
 
     public async Task ScrapeVideos()
     {
@@ -55,8 +55,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         }
 
         List<Task> tasks = [];
-        List<VideoFileWindows> records = [];
-        List<VideoFileWindows> ffmpegAttempts = [];
+        List<VideoFileWindows> videoFiles = [];
+        int countMetadataLookups = 0;
         HashSet<string> processedDirectories = [];
         Stopwatch stopwatch = new();
         stopwatch.Start();
@@ -78,57 +78,37 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 Size = new FileInfo(filePath).Length,
                 LastModified = File.GetLastWriteTime(filePath)
             };
+
             processedDirectories.Add(videoFile.Folder);
-
-            records.Add(videoFile);
-
+            videoFiles.Add(videoFile);
+            
             bool getMetadata = forceMetadata;
             if (!getMetadata)
             {
                 VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
                 bool existingIsOutdated = existing?.ModifiedBefore(videoFile) ?? true;
-                // lacksMetadata won't force a metadata read b/c there are too many properties videos usually don't have a value for.
+                // lacksMetadata won't force a metadata read b/c there are properties videos usually never have a value for.
                 bool lacksMetadata = existing?.LacksMetadata() ?? true;
                 _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, lacksMetadata, existingIsOutdated);
+
                 getMetadata = existing is null || existingIsOutdated;
             }
 
-            // use ffmpeg to get metadata. We put this on the new videoFile object even if we have an existing
-            // database record. Later, any existing record will be synced to match videoFile.
             if (getMetadata)
             {
-                ffmpegAttempts.Add(videoFile);
-                tasks.Add(
-                  Task.Run(async () => await AttachFFProbeMetadata(videoFile))
-                );
+                countMetadataLookups++;
+                tasks.Add(_metadataScraper.GetMetadataAsync(videoFile));
             }
         }
         await Task.WhenAll(tasks);
         stopwatch.Stop();
         if (tasks.Count > 0)
         {
-            _logger.LogDebug("FFProbe metadata attachment for {ffmpegCallCount} videos took {elapsed} milliseconds", tasks.Count, stopwatch.ElapsedMilliseconds);
+            _logger.LogDebug("Grabbing metadata for {countMetadataLookups} videos took {elapsed} milliseconds", tasks.Count, stopwatch.ElapsedMilliseconds);
         }
 
 
-        // Use MicrosoftAPICodePack to get metadata ffprobe couldn't find.
-        // It is not threadsafe so these calls will be made synchronously.
-        // We're only doing this on videos we previous ran ffmpeg against.
-        stopwatch.Reset();
-        int countShell = 0;
-        foreach (var videoFile in ffmpegAttempts.Where(v => v.LacksMetadata()))
-        {
-            countShell++;
-            stopwatch.Start();
-            AttachShellMetadata(videoFile);
-            stopwatch.Stop();
-        }
-        if (countShell > 0)
-        {
-            _logger.LogDebug("Shell metadata attachment for {countShell} videos took {elapsed} milliseconds", countShell, stopwatch.ElapsedMilliseconds);
-        }
-
-        foreach (var videoFile in records)
+        foreach (var videoFile in videoFiles)
         {
             VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
             if (existing is not null)
@@ -150,7 +130,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 _db.Add(videoFile);
             }
         }
-        _logger.LogInformation("We processed {count} local videos", records.Count);
+        _logger.LogInformation("We processed {count} local videos", videoFiles.Count);
         _db.SaveChanges();
 
         // Remove any videos from the database that are no longer on the local file system
@@ -171,66 +151,5 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             _db.SaveChanges();
         }
     }
-
-
-    // use MicrosoftAPICodePack to get metadata
-    private static void AttachShellMetadata(VideoFileWindows videoFile)
-    {
-        string filePath = videoFile.Path;
-        var shellFile = ShellFile.FromFilePath(filePath.Replace("/", @"\")); ;
-        var propertiesSystem = shellFile.Properties.System;
-
-        videoFile.CreatedDate ??= propertiesSystem.Media.DateEncoded.Value ?? File.GetCreationTime(filePath);
-
-        if (videoFile.DurationMs is null || videoFile.DurationMs <= 0)
-        {
-            // Represents the actual play time of a media file and is measured in 100ns units, not milliseconds.
-            videoFile.DurationMs = (long)(propertiesSystem.Media.Duration?.Value / 10_000 ?? 0);
-        }
-        // Metadata: Title & Comments
-        if (videoFile.Description is null)
-        {
-            List<string> descParts = [propertiesSystem.Title.Value, propertiesSystem.Comment.Value];
-            videoFile.Description = string.Join(" | ", descParts.Where(s => !string.IsNullOrEmpty(s)));
-        }
-        shellFile.Dispose();
-    }
-
-    public async Task AttachFFProbeMetadata(VideoFileWindows videoFile)
-    {        
-        // use ffprobe to get whatever metadata we can
-        IMediaAnalysis mediaInfo;
-        try
-        {
-            mediaInfo = await _ffmpegHelper.GetMetadataAsync(videoFile); 
-        }
-        catch (Exception e)
-        {
-            _logger.LogError("Error with ffprobe on file {filePath}: {errMessage}", videoFile.Path, e.Message);
-            return;
-        }
-
-        
-        // Metadata: duration
-        videoFile.DurationMs = (long)mediaInfo.Duration.TotalMilliseconds;
-
-        // Metadata: Codec
-        videoFile.Codec = mediaInfo.VideoStreams.FirstOrDefault()?.CodecName ?? "unknown";
-
-        if (mediaInfo.Format?.Tags is Dictionary<string, string> tags)
-        {
-            // Metadata: media creation date
-            if (tags.TryGetValue("creation_time", out string? dateString))
-            {
-                videoFile.CreatedDate = DateTime.Parse(dateString);
-            }
-
-            // Metadata: description. Join "title" and "comment" tags
-            List<string> descParts = ["title", "comment"];
-            videoFile.Description = string.Join(" | ", descParts
-              .Select(k => tags.GetValueOrDefault(k))
-              .Where(v => v is not null));
-        }
-    }
-
+    
 }

@@ -2,7 +2,7 @@ using VideoToolsCore.Services;
 
 namespace LocalScraper;
 
-public class Settings : IProvidesFFMpegPath
+public record Settings : IProvidesFFMpegPath
 {
     public string? SourceDir { get; set; }
     public bool FreshDatabase { get; set; } = false;

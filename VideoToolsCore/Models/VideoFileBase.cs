@@ -75,8 +75,15 @@ public abstract class VideoFileBase : OwnableEntityBase
         Size = other.Size;
     }
 
+    public virtual void AttachMetadata(Metadata m)
+    {
+        DurationMs = m.DurationMs;
+        CreatedDate = m.CreatedDate;
+        Description = m.Description;
+    }
+
     public override int GetHashCode()
     {
         return HashCode.Combine(Name, CreatedDate, Description, Duration, Size);
-    }
+    }    
 }

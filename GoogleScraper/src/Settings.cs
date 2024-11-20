@@ -1,4 +1,4 @@
-public class Settings
+public record Settings
 {
     public bool FreshDatabase { get; set; } = false;        
     public int? PageLimitGoogle { get; set; }

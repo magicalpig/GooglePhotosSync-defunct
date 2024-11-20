@@ -12,18 +12,21 @@ public class HostBuilder
         // When it loads configuration, one source will be appsettings.{DOTNET_ENVIRONMENT}.json.
         // It will also pull user secrets when in development mode.
         var builder = Host.CreateDefaultBuilder()
-          .ConfigureServices((hostContext, services) =>
-          {
-              var config = hostContext.Configuration;
-              var settings = BuildSettingsFromConfig<TSettings>(config, hostContext);
-              services.AddSingleton(settings);
-              if (settings is IProvidesFFMpegPath ffmpegSettings)
-              {
-                  services.AddSingleton<IProvidesFFMpegPath>(ffmpegSettings);
-              }
-
-              configureAdditionalServices(services);
-          }
+            .ConfigureServices((hostContext, services) =>
+            {
+                var config = hostContext.Configuration;
+                var settings = BuildSettingsFromConfig<TSettings>(config, hostContext);
+                services.AddSingleton(settings)
+                    .AddSingleton<FFMpegHelper>()
+                    .AddSingleton<MetadataScraper>();
+                    
+                if (settings is IProvidesFFMpegPath ffmpegSettings)
+                {
+                    services.AddSingleton<IProvidesFFMpegPath>(ffmpegSettings);
+                }
+                
+                configureAdditionalServices(services);
+            }
         );
         return builder.Build();
     }
