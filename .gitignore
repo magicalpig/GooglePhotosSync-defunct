@@ -3,6 +3,6 @@
 video_files.db
 *.db-shm
 *.db-wal
-*.sqbpro
+
 .vs/VideoScraper/v16/.suo
 *.generated.sln
