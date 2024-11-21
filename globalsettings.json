@@ -1,17 +1,40 @@
 {
     "MachineSettings": {
-        "DellStudio" : {
+        "DellStudio": {
             "SourceDir": "D:/homevideos",
             "FFMpegPath": "c:/ffmpeg/bin/",
             "DbFilePath": "C:/Users/Rance/Coding/VideoScraper/video_files.db"
         },
-        "WINDOWS-DU9EAQV" : {
+        "WINDOWS-DU9EAQV": {
             "SourceDir": "c:/temp",
             "FFMpegPath": "c:/ffmpeg/bin/",
             "DbFilePath": "C:/temp/video_files.db"
         }
     },
-
-    "Settings": {
-    }
+    "Logging": {
+        "LogLevel": {
+            "Default": "Information",
+            "Microsoft": "Warning",
+            "System.Net.Http.HttpClient": "Warning"
+        },
+        "Console": {
+            "FormatterName": "simple",
+            "FormatterOptions": {
+                "IncludeScopes": true,
+                "SingleLine": true,
+                "EnableColors": true
+            }
+        },
+        "EventLog": {
+            "LogLevel": {
+                "Default": "None"
+            }
+        },
+        "Debug": {
+            "LogLevel": {
+                "Default": "None"
+            }
+        }
+    },
+    "Settings": {}
 }

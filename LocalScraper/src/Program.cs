@@ -21,7 +21,6 @@ class Program
                 .AddSingleton<FFMpegHelper>();
         });
 
-
         var localFileSystemScraper = host.Services.GetRequiredService<Scraper>();
         try
         {

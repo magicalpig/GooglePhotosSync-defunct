@@ -1,4 +1,6 @@
-public record Settings
+using VideoToolsCore.DataAccess;
+
+public record Settings : IProvidesDbFilePath
 {
     public bool FreshDatabase { get; set; } = false;        
     public int? PageLimitGoogle { get; set; }
@@ -6,4 +8,5 @@ public record Settings
     public string? LocalUserId { get; set; }
     public bool ScrapeGoogleVideos { get; set; } = true;
     public bool ScrapeGoogleAlbums { get; set; } = true;
+    public string? DbFilePath { get; set; }
 }

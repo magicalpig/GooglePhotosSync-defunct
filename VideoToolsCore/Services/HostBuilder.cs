@@ -27,17 +27,17 @@ public class HostBuilder
             {
                 var config = hostContext.Configuration;
                 var settings = BuildSettingsFromConfig<TSettings>(config, hostContext);
-                services.AddSingleton(settings)
-                    .AddSingleton<FFMpegHelper>()
-                    .AddSingleton<MetadataScraper>();
+                services.AddSingleton(settings);
 
-                if (settings is IProvidesFFMpegPath)
+                if (settings is IProvidesFFMpegPath ffMpegPath)
                 {
-                    services.AddSingleton((IProvidesFFMpegPath)settings);
+                    services.AddSingleton<FFMpegHelper>()
+                        .AddSingleton(ffMpegPath)
+                        .AddSingleton<MetadataScraper>();
                 }
-                if (settings is IProvidesDbFilePath)
+                if (settings is IProvidesDbFilePath dbFilePath)
                 {
-                    services.AddSingleton((IProvidesDbFilePath)settings);
+                    services.AddSingleton(dbFilePath);
                 }
 
                 configureAdditionalServices(services);
