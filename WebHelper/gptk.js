@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Google Photos Toolkit
 // @description Bulk organize your media
-// @version     2.0.0
+// @version     2.0.0.13
 // @author      xob0t
 // @homepageURL https://github.com/xob0t/Google-Photos-Toolkit#readme
 // @supportURL  https://github.com/xob0t/Google-Photos-Toolkit/discussions
@@ -9,16 +9,22 @@
 // @license     MIT
 // @namespace   https://github.com/xob0t/Google-Photos-Toolkit
 // @icon        https://raw.githubusercontent.com/xob0t/Google-Photos-Toolkit/main/media/icon.png
-// @downloadURL https://github.com/xob0t/Google-Photos-Toolkit/releases/latest/download/google_photos_toolkit.user.js
 // @run-at      body
 // @grant       none
+// @downloadURL     http://localhost:8080/gptkjs
+// @updateURL       http://localhost:8080/gptkjs
 // @noframes
 // ==/UserScript==
 (function () {
-  'use strict';
+    "use strict";
 
-  var gptkMainTemplate = (`
+    var gptkMainTemplate = `
 <div class="overlay"></div>
+<div id="confirmationModal" style="display: none;">
+    <p id="confirmationMessage">ROB</p>
+    <button id="yesButton">Yes</button>
+    <button id="noButton">No</button>
+</div>
 <div id="gptk" class="container">
   <div class="header">
     <div class="header-info">
@@ -466,9 +472,9 @@
     </div>
   </div>
 </div>
-`);
+`;
 
-  var buttonHtml = (`
+    var buttonHtml = `
 <div id="gptk-button" class="rxangc Wvu7of">
     <div role="button" class="U26fgb JRtysb WzwrXb YI2CVc G6iPcb m6aMje ML2vC" jsshadow="" aria-label="GPTK"
         aria-disabled="false" tabindex="0" data-tooltip="GPTK" aria-haspopup="true" aria-expanded="false"
@@ -504,13 +510,19 @@
         </span>
     </div>
 </div>
-`);
+`;
 
-  var css = (`
+    var css = `
+    div#confirmationModal {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 501; display: none; background-color: var(--primary-bg-color); color: var(--main-text-color); border-radius: 5px; padding: 10px; box-shadow: 0px 10px 10px rgba(0, 0, 0, 0.438); 
+    }
+
 :root {
     --color-accent: #0d4574; --color-accent-dark: #202833; --primary-bg-color: #161616; --secondary-bg-color: #1b1b1b; --color-surface-200: #282828; --color-surface-300: #3f3f3f; --color-surface-400: #575757; --color-surface-500: #717171; --color-surface-600: #8b8b8b; --main-text-color: #d3d3d3; --main-text-color-hover: #e2e2e2; --secondary-text-color: #9c9c9c; --footer-color: #323232; --filter-preview-color: #0b0b0c; --warning: #E27070; --exit-button-background:darkred; --success: #53E678; --overlay-filter: blur(4px) brightness(0.5); }
 .overlay {
-    position: absolute; display: none; left: 0; top: 0; width: 100%; height: 100%; z-index: 499; backdrop-filter: var(--overlay-filter); }
+    position: absolute; display: none; left: 0; top: 0; width: 100%; height: 100%; z-index: 499; backdrop-filter: var(--overlay-filter); 
+}
+  
 @media only screen and (min-width: 700px) {
     .window-body {
         display: grid; grid-template-columns: minmax(100px, 320px) minmax(100px, 3fr); }
@@ -691,1961 +703,2489 @@
     .scroll:hover::-webkit-scrollbar-track {
         visibility: visible; }
 }
-`);
-
-  function generateFilterDescription(filter) {
-
-    // date check
-    if (filter.lowerBoundaryDate >= filter.higherBoundaryDate) return 'Error: Invalid Date Interval';
-    // size check
-    if (parseInt(filter.lowerBoundarySize) >= parseInt(filter.higherBoundarySize)) return 'Error: Invalid Size Filter';
-    let descriptionParts = ['Filter: All'];
-
-    if (filter.owned === 'true') descriptionParts.push('owned');
-    else if (filter.owned === 'false') descriptionParts.push('not owned');
-
-    if (filter.space === 'consuming') descriptionParts.push('space consuming');
-    if (filter.space === 'non-consuming') descriptionParts.push('non-space consuming');
-
-    if (filter.excludeShared === 'true') descriptionParts.push('non-shared');
-
-    if (filter.favorite === 'true') descriptionParts.push('favorite');
-    if (filter.excludeFavorites === 'true' || filter.favorite === 'false') descriptionParts.push('non-favorite');
-
-    if (filter.quality === 'original') descriptionParts.push('original quality');
-    else if (filter.quality === 'storage-saver') descriptionParts.push('storage-saver quality');
-    if (filter.archived === 'true') descriptionParts.push('archived');
-    else if (filter.archived === 'false') descriptionParts.push('non-archived');
-
-    if (!filter.type) descriptionParts.push('media');
-    else if (filter.type === 'video') descriptionParts.push('videos');
-    else if (filter.type === 'image') descriptionParts.push('images');
-
-    if (filter.searchQuery) descriptionParts.push(`in search results of query "${filter.searchQuery}"`);
-
-    if (filter.fileNameRegex) {
-      descriptionParts.push('with filename');
-      if (filter.fileNameMatchType === 'include') descriptionParts.push('matching');
-      if (filter.fileNameMatchType === 'exclude') descriptionParts.push('not matching');
-      descriptionParts.push(`regex "${filter.fileNameRegex}"`);
-    }
-
-    if (filter.descriptionRegex) {
-      descriptionParts.push('with description');
-      if (filter.descriptionMatchType === 'include') descriptionParts.push('matching');
-      if (filter.descriptionMatchType === 'exclude') descriptionParts.push('not matching');
-      descriptionParts.push(`regex "${filter.descriptionRegex}"`);
-    }
-
-    if (parseInt(filter.lowerBoundarySize) > 0) descriptionParts.push(`larger than ${parseInt(filter.lowerBoundarySize)} bytes`);
-    if (parseInt(filter.lowerBoundarySize) > 0 && parseInt(filter.higherBoundarySize) > 0) descriptionParts.push('and');
-    if (parseInt(filter.higherBoundarySize) > 0) descriptionParts.push(`smaller than ${parseInt(filter.higherBoundarySize)} bytes`);
-
-    if (filter.albumsInclude) {
-      descriptionParts.push(Array.isArray(filter.albumsInclude) ? 'in the target albums' : 'in the target album');
-    }
-    if (filter.albumsExclude) {
-      descriptionParts.push('excluding items');
-      descriptionParts.push(Array.isArray(filter.albumsExclude) ? 'in the selected albums' : 'in the selected album');
-    }
-
-    if (filter.lowerBoundaryDate || filter.higherBoundaryDate) {
-      const lowerBoundaryDate = filter.lowerBoundaryDate ? new Date(filter.lowerBoundaryDate).toLocaleString('en-GB') : null;
-      const higherBoundaryDate = filter.higherBoundaryDate ? new Date(filter.higherBoundaryDate).toLocaleString('en-GB') : null;
-
-      if (filter.dateType === 'taken') descriptionParts.push('taken');
-      else if (filter.dateType === 'uploaded') descriptionParts.push('uploaded');
-
-      if (lowerBoundaryDate && higherBoundaryDate) {
-
-        if (filter.intervalType === 'exclude') {
-          descriptionParts.push(`before ${lowerBoundaryDate} and after ${higherBoundaryDate}`);
-        }
-        else if (filter.intervalType === 'include') {
-          descriptionParts.push(`from ${lowerBoundaryDate} to ${higherBoundaryDate}`);
-        }
-      } else if (lowerBoundaryDate) {
-        if (filter.intervalType === 'exclude') descriptionParts.push(`before ${lowerBoundaryDate}`);
-        else if (filter.intervalType === 'include') descriptionParts.push(`after ${lowerBoundaryDate}`);
-
-      } else if (higherBoundaryDate) {
-        if (filter.intervalType === 'exclude') descriptionParts.push(`after ${higherBoundaryDate}`);
-        else if (filter.intervalType === 'include') descriptionParts.push(`before ${higherBoundaryDate}`);
-      }
-    }
-
-    let filterDescriptionString = descriptionParts.join(' ');
-    if (filterDescriptionString == 'Filter: All media') filterDescriptionString = 'Filter: None';
-    return filterDescriptionString;
-  }
-
-  function getForm(selector) {
-    let form = {};
-    const formElement = document.querySelector(selector);
-    const formData = new FormData(formElement);
-
-    for (const [key, value] of formData) {
-
-      if (value) {
-        // Check if the key already exists in the form object
-        if (Reflect.has(form, key)) {
-          // If the value is not an array, make it an array
-          if (!Array.isArray(form[key])) {
-            form[key] = [form[key]];
-          }
-          // Add the new value to the array
-          form[key].push(value);
-        } else {
-          // If the key doesn't exist in the form object, add it
-          form[key] = value;
-        }
-      }
-    }
-    return form;
-  }
-
-  function disableActionBar(disabled) {
-    const actions = document.querySelectorAll('.action-bar *');
-    for (const action of actions) {
-      action.disabled = disabled;
-    }
-  }
-
-  function parser(data, rpcid) {
-
-
-    function libraryItemParse(rawItemData) {
-      return {
-        productId: rawItemData?.[0],
-        dateTaken: rawItemData?.[2],
-        mediaId: rawItemData?.[3],
-        dateUploaded: rawItemData?.[5],
-        isArchived: rawItemData?.[13],
-        isFavorite: rawItemData?.at(-1)?.[163238866]?.[0],
-        duration: rawItemData?.at(-1)?.[76647426]?.[0],
-        descriptionShort: rawItemData?.at(-1)?.[396644657]?.[0],
-        isOwned: rawItemData?.[7]?.[12]?.[0] !== 27
-      };
-    }
-
-    function libraryTimelinePage(data) {
-      return {
-        items: data?.[0]?.map(rawItemData => libraryItemParse(rawItemData)),
-        nextPageId: data?.[1],
-        lastItemTimestamp: parseInt(data?.[2]),
-      };
-    }
-
-    function libraryGenericPage(data) {
-      return {
-        items: data?.[0]?.map(rawItemData => libraryItemParse(rawItemData)),
-        nextPageId: data?.[1],
-      };
-    }
-
-    function lockedFolderItemParse(rawItemData) {
-      return {
-        productId: rawItemData?.[0],
-        dateTaken: rawItemData?.[2],
-        mediaId: rawItemData?.[3],
-        dateUploaded: rawItemData?.[5],
-        duration: rawItemData?.at(-1)?.[76647426]?.[0]
-      };
-    }
-
-    function lockedFolderPage(data) {
-      return {
-        nextPageId: data?.[0],
-        items: data?.[1]?.map(rawItemData => lockedFolderItemParse(rawItemData))
-      };
-    }
-
-    function linkParse(rawLinkData) {
-      return {
-        productId: rawLinkData?.[6],
-        linkId: rawLinkData?.[17],
-        itemCount: rawLinkData?.[3]
-      };
-    }
-
-    function linksPage(data) {
-      return {
-        items: data?.[0]?.map(rawLinkData => linkParse(rawLinkData)),
-        nextPageId: data?.[1]
-      };
-    }
-
-    function albumParse(rawAlbumData) {
-      return {
-        productId: rawAlbumData?.[0],
-        albumId: rawAlbumData?.[6]?.[0],
-        name: rawAlbumData?.at(-1)?.[72930366]?.[1],
-        itemCount: rawAlbumData?.at(-1)?.[72930366]?.[3],
-        isShared: rawAlbumData?.at(-1)?.[72930366]?.[4] || false
-      };
-    }
-
-    function albumsPage(data) {
-      return {
-        items: data?.[0]?.map(rawAlbumData => albumParse(rawAlbumData)),
-        nextPageId: data?.[1]
-      };
-    }
-
-    function itemBasicParse(rawItemData) {
-        console.log("Inside itemBasicParse where the duration is " + rawItemData?.at(-1)?.[76647426]?.[0] + " for product ID " + rawItemData?.[0]);
-      return {
-        productId: rawItemData?.[0],
-        dateTaken: rawItemData?.[2],
-        mediaId: rawItemData?.[3],
-        dateUploaded: rawItemData?.[5],
-        duration: rawItemData?.at(-1)?.[76647426]?.[0]
-      };
-    }
-
-    function albumItemsPage(data) {
-      return {
-        items: data?.[1]?.map(rawItemData => itemBasicParse(rawItemData)),
-        nextPageId: data?.[2]
-      };
-    }
-
-    function trashPage(data) {
-      return {
-        items: data?.[0].map(rawItemData => itemBasicParse(rawItemData)),
-        nextPageId: data?.[1]
-      };
-    }
-
-    function itemBulkInfoParse(rawItemData) {
-      return {
-        productId: rawItemData?.[0],
-        descriptionFull: rawItemData?.[1]?.[2],
-        fileName: rawItemData?.[1]?.[3],
-        dateTaken: rawItemData?.[1]?.[6],
-        dateUploaded: rawItemData?.[1]?.[8],
-        size: rawItemData?.[1]?.[9],
-        takesUpSpace: rawItemData?.[1]?.at(-1)?.[0] === 1,
-        spaceTaken: rawItemData?.[1]?.at(-1)?.[1],
-        isOriginalQuality: rawItemData?.[1]?.at(-1)?.[2] === 2
-      };
-    }
-
-    function bulkInfo(data) {
-      return data.map(rawItemData => itemBulkInfoParse(rawItemData));
-    }
-
-    if(!data?.length) return null;
-    if (rpcid === 'lcxiM') return libraryTimelinePage(data);
-    if (rpcid === 'nMFwOc') return lockedFolderPage(data);
-    if (rpcid === 'EzkLib') return libraryGenericPage(data);
-    if (rpcid === 'F2A0H') return linksPage(data);
-    if (rpcid === 'Z5xsfc') return albumsPage(data);
-    if (rpcid === 'snAcKc') return albumItemsPage(data);
-    if (rpcid === 'zy0IHe') return trashPage(data);
-    if (rpcid === 'EWgK9e') return bulkInfo(data);
-  }
-
-  const windowGlobalData = {
-    rapt: window.WIZ_global_data.Dbw5Ud,
-    account: window.WIZ_global_data.oPEP7c,
-    'f.sid': window.WIZ_global_data.FdrFJe,
-    bl: window.WIZ_global_data.cfb2h,
-    path: window.WIZ_global_data.eptZe,
-    at: window.WIZ_global_data.SNlM0e
-  };
-
-  class Api {
-    async makeApiRequest(rpcid, requestData) {
-      requestData = [[[rpcid, JSON.stringify(requestData), null, 'generic']]];
-        let rpcMap = {
-            'lcxiM': "library timeline page",
-            'nMFwOc': "locked folder page",
-            'EzkLib': "library generic page",
-            'F2A0H': "links page",
-            'Z5xsfc': "albums page",
-            'snAcKc': "album items page",
-            'zy0IHe': "trash page",
-            'EWgK9e': "bulk info"
-        };
-      console.log("Making API request with RPC ID " + rpcid); //#RDA
-      console.log("This correlates to the function " + rpcMap[rpcid]);   // #RDA
-      const requestDataString = `f.req=${encodeURIComponent(JSON.stringify(requestData))}&at=${encodeURIComponent(windowGlobalData.at)}&`;
-
-      const params = {
-        rpcids: rpcid,
-        'source-path': window.location.pathname,
-        'f.sid': windowGlobalData['f.sid'],
-        bl: windowGlobalData.bl,
-        pageId: 'none',
-        rt: 'c'
-      };
-      // if in locked folder send rapt
-      if(windowGlobalData.rapt) params.rapt = windowGlobalData.rapt;
-      const paramsString = Object.keys(params).map(key => `${key}=${encodeURIComponent(params[key])}`).join('&');
-      const url = `https://photos.google.com${windowGlobalData.path}data/batchexecute?${paramsString}`;
-      try {
-        const response = await fetch(url, {
-          'headers': {
-            'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          },
-          'body': requestDataString,
-          'method': 'POST',
-          'credentials': 'include'
-        });
-
-        const responseBody = await response.text();
-        const jsonLines = responseBody.split('\n').filter(line => line.includes('wrb.fr'));
-        let parsedData = JSON.parse(jsonLines[0]);
-        return JSON.parse(parsedData[0][2]);
-      } catch (error) {
-        console.error(`Error in ${rpcid} request:`, error);
-        throw error;
-      }
-    }
-
-    async listItemsByTakenDate(timestamp = null, source = null, pageId = null, parseResponse = true) {
-      // Retrieves media items created before the provided timestamp
-      if (source === 'library') source = 1;
-      else if (source === 'archive') source = 2;
-      else if (!source) source = 3; //both
-
-      const rpcid = 'lcxiM';
-      const limit = 500; // 500 is max
-      const requestData = [pageId, timestamp, limit, null, 1, source];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listItemsByTakenDate:', error);
-        throw error;
-      }
-    }
-
-    async listItemsByUploadedDate(pageId = null, parseResponse = true) {
-      const rpcid = 'EzkLib';
-      const requestData = ['', [[4, 'ra', 0, 0]], pageId];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listItemsByUploadedDate:', error);
-        throw error;
-      }
-    }
-
-    async search(searchQuery, pageId = null, parseResponse = true) {
-      const rpcid = 'EzkLib';
-      const requestData = [searchQuery, null, pageId];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in search:', error);
-        throw error;
-      }
-    }
-
-    async listFavorites(pageId = null, parseResponse = true) {
-      const rpcid = 'EzkLib';
-      const requestData = ['Favorites', [[5, '8', 0, 9]], pageId];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listFavorites:', error);
-        throw error;
-      }
-    }
-
-    async listTrashItems(pageId = null, parseResponse = true) {
-      const rpcid = 'zy0IHe';
-      const requestData = [pageId];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listTrashItems:', error);
-        throw error;
-      }
-    }
-
-    async listLockedFolderItems(pageId = null, parseResponse = true) {
-      const rpcid = 'nMFwOc';
-      const requestData = [pageId];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listLockedFolderItems:', error);
-        throw error;
-      }
-    }
-
-    async moveMediaToTrash(mediaIdList) {
-      const rpcid = 'XwAOJf';
-      const requestData = [null, 1, mediaIdList, 3];
-      // note: It seems that '3' here corresponds to items' location
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response[0];
-      } catch (error) {
-        console.error('Error in moveMediaToTrash:', error);
-        throw error;
-      }
-    }
-
-    async restoreFromTrash(mediaIdList) {
-      const rpcid = 'XwAOJf';
-      const requestData = [null, 3, mediaIdList, 2];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response[0];
-      } catch (error) {
-        console.error('Error in restoreFromTrash:', error);
-        throw error;
-      }
-    }
-
-    async listSharedLinks(pageId = null, parseResponse = true) {
-      const rpcid = 'F2A0H';
-      const requestData = [pageId, null, 2, null, 3];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listSharedLinks:', error);
-        throw error;
-      }
-    }
-
-    async listAlbums(pageId = null, parseResponse = true) {
-      const rpcid = 'Z5xsfc';
-      const requestData = [pageId, null, null, null, 1, null, null, 100];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listAlbums:', error);
-        throw error;
-      }
-    }
-
-    async listAlbumItems(albumId, pageId = null, parseResponse = true) {
-      // list items of an album or a shared link with the given id
-      const rpcid = 'snAcKc';
-      const requestData = [albumId, pageId, null, null, 1];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in listAlbumItems:', error);
-        throw error;
-      }
-    }
-
-    async removeFromAlbum(albumItemIdList) {
-      const rpcid = 'ycV3Nd';
-      const requestData = [albumItemIdList];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in removeFromAlbum:', error);
-        throw error;
-      }
-    }
-
-    async createEmptyAlbum(albumName) {
-      // returns string id of the created album
-      const rpcid = 'OXvT9d';
-      let requestData = [albumName, null, 2];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response[0][0];
-      } catch (error) {
-        console.error('Error in createEmptyAlbum:', error);
-        throw error;
-      }
-    }
-
-    async addItemsToAlbum(productIdList, albumId = null, albumName = null) {
-      // supply album ID for adding to an existing album, or a name for a new one
-      const rpcid = 'E1Cajb';
-      let requestData = null;
-
-      if (albumName) requestData = [productIdList, null, albumName];
-      else if (albumId) requestData = [productIdList, albumId];
-
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in addItemsToAlbum:', error);
-        throw error;
-      }
-    }
-
-    async setFavorite(mediaIdList, action = true) {
-      if (action === true) action = 1; //set favorite
-      else if (action === false) action = 2;//un favorite
-      mediaIdList = mediaIdList.map(item => [null, item]);
-      const rpcid = 'Ftfh0';
-      const requestData = [mediaIdList, [action]];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in setFavorite:', error);
-        throw error;
-      }
-    }
-
-    async setArchive(mediaIdList, action = true) {
-      if (action === true) action = 1;// send to archive
-      else if (action === false) action = 2;// un archive
-
-      mediaIdList = mediaIdList.map(item => [null, [action], [null, item]]);
-      const rpcid = 'w7TP3c';
-      const requestData = [mediaIdList, null, 1];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in setArchive:', error);
-        throw error;
-      }
-    }
-
-    async moveToLockedFolder(mediaIdList) {
-      const rpcid = 'StLnCe';
-      const requestData = [mediaIdList, []];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in moveToLockedFolder:', error);
-        throw error;
-      }
-    }
-
-    async removeFromLockedFolder(mediaIdList) {
-      const rpcid = 'Pp2Xxe';
-      const requestData = [mediaIdList];
-      try {
-        const response = await this.makeApiRequest(rpcid, requestData);
-        return response;
-      } catch (error) {
-        console.error('Error in removeFromLockedFolder:', error);
-        throw error;
-      }
-    }
-
-    async getBatchMediaInfo(productIdList, parseResponse = true) {
-      const rpcid = 'EWgK9e';
-      productIdList = productIdList.map(id => [id]);
-      const requestData = [[[productIdList], [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, [], null, null, null, null, null, null, null, null, null, null, []]]]];
-      try {
-        let response = await this.makeApiRequest(rpcid, requestData);
-        response = response[0][1];
-        if (parseResponse) return parser(response, rpcid);
-        return response;
-      } catch (error) {
-        console.error('Error in getBatchMediaInfo:', error);
-        throw error;
-      }
-    }
-  }
-
-  function log(logMessage, type = null) {
-    const logPrefix = '[GPTK]';
-    // Create a new div for the log message
-    const logDiv = document.createElement('div');
-    logDiv.style.whiteSpace = 'pre';
-    logDiv.textContent = logMessage;
-
-    if(type)logDiv.classList.add(type);
-    console.log(`${logPrefix} ${logMessage}`);
-
-    // Append the log message to the log container
-    try {
-      const logContainer = document.querySelector('#logArea');
-      logContainer.appendChild(logDiv);
-      if (document.querySelector('#autoScroll').checked) logDiv.scrollIntoView();
-    } catch (error) {
-      console.error(`${logPrefix} ${error}`);
-    }
-  }
-
-  function splitArrayIntoChunks(arr, chunkSize = 500) {
-    chunkSize = parseInt(chunkSize);
-    const chunks = [];
-    for (let i = 0; i < arr.length; i += chunkSize) {
-      chunks.push(arr.slice(i, i + chunkSize));
-    }
-    return chunks;
-  }
-
-  const apiSettingsDefault = {
-    maxConcurrentApiReq: 3,
-    operationSize: 500,
-    lockedFolderOpSize : 100,
-    infoSize: 5000
-  };
-
-  class ApiUtils {
-    constructor(core = null, settings) {
-      this.api = new Api();
-      this.executeWithConcurrency = this.executeWithConcurrency.bind(this);
-      this.getAllItems = this.getAllItems.bind(this);
-      this.core = core;
-      let {
-        maxConcurrentApiReq,
-        operationSize,
-        infoSize,
-        lockedFolderOpSize
-      } = settings || apiSettingsDefault;
-
-      this.maxConcurrentApiReq = parseInt(maxConcurrentApiReq);
-      this.operationSize = parseInt(operationSize);
-      this.lockedFolderOpSize = parseInt(lockedFolderOpSize);
-      this.infoSize = parseInt(infoSize);
-    }
-
-    async executeWithConcurrency(apiMethod, successCheck, operationSize, itemsArray, ...args) {
-      const promisePool = [];
-      const results = [];
-      const chunkedItems = splitArrayIntoChunks(itemsArray, operationSize);
-
-      for (const chunk of chunkedItems) {
-        if (!this.core.isProcessRunning) return;
-        while(promisePool.length >= this.maxConcurrentApiReq){
-          await Promise.race(promisePool);
-          promisePool.shift();
+`;
+
+    function generateFilterDescription(filter) {
+        // date check
+        if (filter.lowerBoundaryDate >= filter.higherBoundaryDate)
+            return "Error: Invalid Date Interval";
+        // size check
+        if (
+            parseInt(filter.lowerBoundarySize) >=
+            parseInt(filter.higherBoundarySize)
+        )
+            return "Error: Invalid Size Filter";
+        let descriptionParts = ["Filter: All"];
+
+        if (filter.owned === "true") descriptionParts.push("owned");
+        else if (filter.owned === "false") descriptionParts.push("not owned");
+
+        if (filter.space === "consuming")
+            descriptionParts.push("space consuming");
+        if (filter.space === "non-consuming")
+            descriptionParts.push("non-space consuming");
+
+        if (filter.excludeShared === "true")
+            descriptionParts.push("non-shared");
+
+        if (filter.favorite === "true") descriptionParts.push("favorite");
+        if (filter.excludeFavorites === "true" || filter.favorite === "false")
+            descriptionParts.push("non-favorite");
+
+        if (filter.quality === "original")
+            descriptionParts.push("original quality");
+        else if (filter.quality === "storage-saver")
+            descriptionParts.push("storage-saver quality");
+        if (filter.archived === "true") descriptionParts.push("archived");
+        else if (filter.archived === "false")
+            descriptionParts.push("non-archived");
+
+        if (!filter.type) descriptionParts.push("media");
+        else if (filter.type === "video") descriptionParts.push("videos");
+        else if (filter.type === "image") descriptionParts.push("images");
+
+        if (filter.searchQuery)
+            descriptionParts.push(
+                `in search results of query "${filter.searchQuery}"`
+            );
+
+        if (filter.fileNameRegex) {
+            descriptionParts.push("with filename");
+            if (filter.fileNameMatchType === "include")
+                descriptionParts.push("matching");
+            if (filter.fileNameMatchType === "exclude")
+                descriptionParts.push("not matching");
+            descriptionParts.push(`regex "${filter.fileNameRegex}"`);
         }
 
-        log(`Processing ${chunk.length} items`);
+        if (filter.descriptionRegex) {
+            descriptionParts.push("with description");
+            if (filter.descriptionMatchType === "include")
+                descriptionParts.push("matching");
+            if (filter.descriptionMatchType === "exclude")
+                descriptionParts.push("not matching");
+            descriptionParts.push(`regex "${filter.descriptionRegex}"`);
+        }
 
-        const promise = apiMethod.call(this.api, chunk, ...args); // Call apiMethod with correct context
-        promisePool.push(promise);
+        if (parseInt(filter.lowerBoundarySize) > 0)
+            descriptionParts.push(
+                `larger than ${parseInt(filter.lowerBoundarySize)} bytes`
+            );
+        if (
+            parseInt(filter.lowerBoundarySize) > 0 &&
+            parseInt(filter.higherBoundarySize) > 0
+        )
+            descriptionParts.push("and");
+        if (parseInt(filter.higherBoundarySize) > 0)
+            descriptionParts.push(
+                `smaller than ${parseInt(filter.higherBoundarySize)} bytes`
+            );
 
-        promise
-          .then(result => {
-            results.push(...result);
-            if (successCheck && !successCheck(result)) {
-              log(`Error executing action ${apiMethod.name}`, 'error');
-              promisePool.shift();
+        if (filter.albumsInclude) {
+            descriptionParts.push(
+                Array.isArray(filter.albumsInclude)
+                    ? "in the target albums"
+                    : "in the target album"
+            );
+        }
+        if (filter.albumsExclude) {
+            descriptionParts.push("excluding items");
+            descriptionParts.push(
+                Array.isArray(filter.albumsExclude)
+                    ? "in the selected albums"
+                    : "in the selected album"
+            );
+        }
+
+        if (filter.lowerBoundaryDate || filter.higherBoundaryDate) {
+            const lowerBoundaryDate = filter.lowerBoundaryDate
+                ? new Date(filter.lowerBoundaryDate).toLocaleString("en-GB")
+                : null;
+            const higherBoundaryDate = filter.higherBoundaryDate
+                ? new Date(filter.higherBoundaryDate).toLocaleString("en-GB")
+                : null;
+
+            if (filter.dateType === "taken") descriptionParts.push("taken");
+            else if (filter.dateType === "uploaded")
+                descriptionParts.push("uploaded");
+
+            if (lowerBoundaryDate && higherBoundaryDate) {
+                if (filter.intervalType === "exclude") {
+                    descriptionParts.push(
+                        `before ${lowerBoundaryDate} and after ${higherBoundaryDate}`
+                    );
+                } else if (filter.intervalType === "include") {
+                    descriptionParts.push(
+                        `from ${lowerBoundaryDate} to ${higherBoundaryDate}`
+                    );
+                }
+            } else if (lowerBoundaryDate) {
+                if (filter.intervalType === "exclude")
+                    descriptionParts.push(`before ${lowerBoundaryDate}`);
+                else if (filter.intervalType === "include")
+                    descriptionParts.push(`after ${lowerBoundaryDate}`);
+            } else if (higherBoundaryDate) {
+                if (filter.intervalType === "exclude")
+                    descriptionParts.push(`after ${higherBoundaryDate}`);
+                else if (filter.intervalType === "include")
+                    descriptionParts.push(`before ${higherBoundaryDate}`);
             }
-          }) // Remove fulfilled promise from pool
-          .catch(error => {
-            log(`${apiMethod.name} Api error ${error}`, 'error');
-            promisePool.shift();
-          });
-      }
-      await Promise.all(promisePool);
-      return results;
-    }
-
-    async getAllItems(apiMethod, ...args) {
-      const items = [];
-      let nextPageId = null;
-      do {
-        if (!this.core.isProcessRunning) return;
-        const page = await apiMethod.call(this.api, ...args, nextPageId);
-        if (!page?.items) {
-          log('No items found!', 'error');
-          return [];
         }
-        items.push(...page.items);
-        log(`Found ${page.items.length} items`);
-        nextPageId = page.nextPageId;
-      } while (nextPageId);
-      return items;
+
+        let filterDescriptionString = descriptionParts.join(" ");
+        if (filterDescriptionString == "Filter: All media")
+            filterDescriptionString = "Filter: None";
+        return filterDescriptionString;
     }
 
-    async getAllAlbums() {
-      return await this.getAllItems(this.api.listAlbums);
-    }
+    function getForm(selector) {
+        let form = {};
+        const formElement = document.querySelector(selector);
+        const formData = new FormData(formElement);
 
-    async getAllSharedLinks() {
-      return await this.getAllItems(this.api.listSharedLinks);
-    }
-
-    async getAllMediaInSharedLink(sharedLinkId) {
-      return await this.getAllItems(this.api.listAlbumItems, sharedLinkId);
-    }
-
-    async getAllMediaInAlbum(albumId) {
-      return await this.getAllItems(this.api.listAlbumItems, albumId);
-    }
-
-    async getAllTrashItems() {
-      return await this.getAllItems(this.api.listTrashItems);
-    }
-
-    async getAllFavoriteItems() {
-      return await this.getAllItems(this.api.listFavorites);
-    }
-
-    async getAllSearchItems(searchQuery) {
-      return await this.getAllItems(this.api.search, searchQuery);
-    }
-
-    async getAllLockedFolderItems() {
-      return await this.getAllItems(this.api.listLockedFolderItems);
-    }
-
-    async moveToLockedFolder(mediaItems) {
-      log(`Moving ${mediaItems.length} items to locked folder`);
-      const isSuccess = result => Array.isArray(result);
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.moveToLockedFolder, isSuccess, this.lockedFolderOpSize, mediaIdList);
-    }
-
-    async removeFromLockedFolder(mediaItems) {
-      log(`Moving ${mediaItems.length} items out of locked folder`);
-      const isSuccess = result => Array.isArray(result);
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.removeFromLockedFolder, isSuccess, this.lockedFolderOpSize, mediaIdList);
-    }
-
-    async moveToTrash(mediaItems) {
-      log(`Moving ${mediaItems.length} items to trash`);
-      const isSuccess = result => Array.isArray(result);
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.moveMediaToTrash, isSuccess, this.operationSize, mediaIdList);
-    }
-
-    async restoreFromTrash(trashItems) {
-      log(`Restoring ${trashItems.length} items from trash`);
-      const isSuccess = result => Array.isArray(result);
-      const mediaIdList = trashItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.restoreFromTrash, isSuccess, this.operationSize, mediaIdList);
-    }
-
-    async sendToArchive(mediaItems) {
-      log(`Sending ${mediaItems.length} items to archive`);
-      const isSuccess = result => Array.isArray(result);
-      mediaItems = mediaItems.filter(item => item?.isArchived !== true);
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      if(!mediaItems){
-        log('All target items are already archived!');
-        return;
-      }
-      await this.executeWithConcurrency(this.api.setArchive, isSuccess, this.operationSize, mediaIdList, true);
-    }
-
-    async unArchive(mediaItems) {
-      log(`Removing ${mediaItems.length} items from archive`);
-      const isSuccess = result => Array.isArray(result);
-      mediaItems = mediaItems.filter(item => item?.isArchived !== false);
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      if(!mediaItems){
-        log('All target items are not archived!');
-        return;
-      }
-      await this.executeWithConcurrency(this.api.setArchive, isSuccess, this.operationSize, mediaIdList, false);
-    }
-
-    async setAsFavorite(mediaItems) {
-      log(`Setting ${mediaItems.length} items as favorite`);
-      const isSuccess = result => Array.isArray(result);
-      mediaItems = mediaItems.filter(item => item?.isFavorite !== true);
-      if(!mediaItems){
-        log('All target items are already favorite!');
-        return;
-      }
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.setFavorite, isSuccess, this.operationSize, mediaIdList, true);
-    }
-
-    async unFavorite(mediaItems) {
-      log(`Removing ${mediaItems.length} items from favorites`);
-      const isSuccess = result => Array.isArray(result);
-      mediaItems = mediaItems.filter(item => item?.isFavorite !== false);
-      if(!mediaItems){
-        log('All target items are not favorite!');
-        return;
-      }
-      const mediaIdList = mediaItems.map(item => item.mediaId);
-      await this.executeWithConcurrency(this.api.setFavorite, isSuccess, this.operationSize, mediaIdList, false);
-    }
-
-    async addToExistingAlbum(mediaItems, targetAlbumId) {
-      log(`Adding ${mediaItems.length} items to album`);
-      const isSuccess = result => Array.isArray(result);
-      const productIdList = mediaItems.map(item => item.productId);
-      await this.executeWithConcurrency(this.api.addItemsToAlbum, isSuccess, this.operationSize, productIdList, targetAlbumId);
-    }
-
-    async addToNewAlbum(mediaItems, targetAlbumName) {
-      log(`Creating new album "${targetAlbumName}"`);
-      const targetAlbumId = await this.api.createEmptyAlbum(targetAlbumName);
-      await this.addToExistingAlbum(mediaItems, targetAlbumId);
-    }
-
-    async getBatchMediaInfoChunked(mediaItems) {
-      log('Getting items\' media info');
-      const productIdList = mediaItems.map(item => item.productId);
-      const mediaInfoData = await this.executeWithConcurrency(this.api.getBatchMediaInfo, null, this.infoSize, productIdList);
-      return mediaInfoData;
-    }
-
-    async confirmWebServerRunning() {
-      try {
-        let userId = window.WIZ_global_data.oPEP7c;
-        let response = await fetch('http://localhost:5222/api/RpcScrapedVideos', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json', 'X-UserId': userId }
-        });
-      } catch (error) {
-        log('Error:' + error.toString(), 'error');
-        return false;
-      }
-      return true;
-    }
-
-    async sendToServer(mediaItems) {
-      const confirmMessageFormatter = (count) => `There were ${count} records in the database with no RPC ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to RPC IDs ?`;
-
-      // reduce media items to properties we care about and with property names matching the
-      // schema of the WebHelper API's RpcScrapedVideo object.
-      // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
-      let minimalMediaItems = mediaItems.map(item => {
-        return {
-          size: item.size,
-          durationMs: item.duration || item.durationMs,
-          googleId: item.googleId, // would only be present on recursive call to this function, after doing REST ID lookups
-          rpcId: item.productId || item.rpcId
-        }
-      });
-
-
-      let json = JSON.stringify(minimalMediaItems, null, 2);
-
-      log('Sending video data to server');
-      let response;
-      let userId = window.WIZ_global_data.oPEP7c;
-      try {
-        response = await fetch('http://localhost:5222/api/RpcScrapedVideos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-UserId': userId },
-          body: json
-        });
-      } catch (error) {
-        log('Error:' + error.toString(), 'error');
-        throw error;
-      }
-
-      let data;
-      try {
-        data = await response.json();
-        log('Response:' + JSON.stringify(data, null, 2));
-      } catch (error) {
-        log('Error parsing response JSON:' + error.toString(), 'error');
-        throw error;
-      }
-
-
-      // Continue function only if the server's response indicates it has records missing RPC ID.
-      // recordsWithNoRpcId is a list of REST IDs for such database records.
-      if (!data.recordsWithNoRpcId?.length > 0) {
-        if (data.recordsNotFound?.length) {
-          alert("Some records could not be updated because there was no match for their RPC ID.\n" +
-            "Normally we'd offer to try to convert REST IDs to RPC IDs for these records, but the server didn't indicate any records were missing RPC ID");
-        }
-        return;
-      }
-      const confirmMessage = confirmMessageFormatter(data.recordsWithNoRpcId.length);
-      if (!window.confirm(confirmMessage)) {
-        return;
-      }
-
-      // of these id mappings are for db records having REST ID but no RPC ID.
-      let idMappings = await this.convertRestIdsToRpcIds(data.recordsWithNoRpcId);
-      if (Object.keys(idMappings).length > 0) {
-        let fixedMediaItems =
-          Object.keys(idMappings).map(rpcId => {
-            const restId = idMappings[rpcId];
-            // try to attach REST ID to media items that failed to update a record on first attempt.
-            // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
-            // but we still want to let the server know of the id mapping
-            const mediaItem = minimalMediaItems.find(item => item.rpcId === rpcId);
-            if (mediaItem === undefined) {
-                log('Mapped REST ID ' + restId + ' to rpc ID ' + rpcId + ' but scrape did not give a media item with this rpc ID', 'error');
+        for (const [key, value] of formData) {
+            if (value) {
+                // Check if the key already exists in the form object
+                if (Reflect.has(form, key)) {
+                    // If the value is not an array, make it an array
+                    if (!Array.isArray(form[key])) {
+                        form[key] = [form[key]];
+                    }
+                    // Add the new value to the array
+                    form[key].push(value);
+                } else {
+                    // If the key doesn't exist in the form object, add it
+                    form[key] = value;
+                }
             }
-            return { ...mediaItem, googleId: restId };
-          })
-          .filter(g => g.rpcId && g.googleId);
-        // send the fixed media items to the server
-        this.sendToServer(fixedMediaItems);
-      }
+        }
+        return form;
     }
 
-    // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
-    async convertRestIdsToRpcIds(restIds) {
-      log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);
-      const urlBase = "https://photos.google.com/lr/photo/";
-      let callCount = 0;
-      const newMappings = {};
-      for (let restId of restIds) {
-        if (callCount++ % 5 == 0) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+    function disableActionBar(disabled) {
+        const actions = document.querySelectorAll(".action-bar *");
+        for (const action of actions) {
+            action.disabled = disabled;
         }
-        const url = urlBase + restId;
-        console.log("HEAD call to : " + url);
-        let response;
+    }
+
+    function parser(data, rpcid) {
+        function libraryItemParse(rawItemData) {
+            return {
+                productId: rawItemData?.[0],
+                dateTaken: rawItemData?.[2],
+                mediaId: rawItemData?.[3],
+                dateUploaded: rawItemData?.[5],
+                isArchived: rawItemData?.[13],
+                isFavorite: rawItemData?.at(-1)?.[163238866]?.[0],
+                duration: rawItemData?.at(-1)?.[76647426]?.[0],
+                descriptionShort: rawItemData?.at(-1)?.[396644657]?.[0],
+                isOwned: rawItemData?.[7]?.[12]?.[0] !== 27,
+            };
+        }
+
+        function libraryTimelinePage(data) {
+            return {
+                items: data?.[0]?.map((rawItemData) =>
+                    libraryItemParse(rawItemData)
+                ),
+                nextPageId: data?.[1],
+                lastItemTimestamp: parseInt(data?.[2]),
+            };
+        }
+
+        function libraryGenericPage(data) {
+            return {
+                items: data?.[0]?.map((rawItemData) =>
+                    libraryItemParse(rawItemData)
+                ),
+                nextPageId: data?.[1],
+            };
+        }
+
+        function lockedFolderItemParse(rawItemData) {
+            return {
+                productId: rawItemData?.[0],
+                dateTaken: rawItemData?.[2],
+                mediaId: rawItemData?.[3],
+                dateUploaded: rawItemData?.[5],
+                duration: rawItemData?.at(-1)?.[76647426]?.[0],
+            };
+        }
+
+        function lockedFolderPage(data) {
+            return {
+                nextPageId: data?.[0],
+                items: data?.[1]?.map((rawItemData) =>
+                    lockedFolderItemParse(rawItemData)
+                ),
+            };
+        }
+
+        function linkParse(rawLinkData) {
+            return {
+                productId: rawLinkData?.[6],
+                linkId: rawLinkData?.[17],
+                itemCount: rawLinkData?.[3],
+            };
+        }
+
+        function linksPage(data) {
+            return {
+                items: data?.[0]?.map((rawLinkData) => linkParse(rawLinkData)),
+                nextPageId: data?.[1],
+            };
+        }
+
+        function albumParse(rawAlbumData) {
+            return {
+                productId: rawAlbumData?.[0],
+                albumId: rawAlbumData?.[6]?.[0],
+                name: rawAlbumData?.at(-1)?.[72930366]?.[1],
+                itemCount: rawAlbumData?.at(-1)?.[72930366]?.[3],
+                isShared: rawAlbumData?.at(-1)?.[72930366]?.[4] || false,
+            };
+        }
+
+        function albumsPage(data) {
+            return {
+                items: data?.[0]?.map((rawAlbumData) =>
+                    albumParse(rawAlbumData)
+                ),
+                nextPageId: data?.[1],
+            };
+        }
+
+        function itemBasicParse(rawItemData) {
+            console.log(
+                "Inside itemBasicParse where the duration is " +
+                    rawItemData?.at(-1)?.[76647426]?.[0] +
+                    " for product ID " +
+                    rawItemData?.[0]
+            );
+            return {
+                productId: rawItemData?.[0],
+                dateTaken: rawItemData?.[2],
+                mediaId: rawItemData?.[3],
+                dateUploaded: rawItemData?.[5],
+                duration: rawItemData?.at(-1)?.[76647426]?.[0],
+            };
+        }
+
+        function albumItemsPage(data) {
+            return {
+                items: data?.[1]?.map((rawItemData) =>
+                    itemBasicParse(rawItemData)
+                ),
+                nextPageId: data?.[2],
+            };
+        }
+
+        function trashPage(data) {
+            return {
+                items: data?.[0].map((rawItemData) =>
+                    itemBasicParse(rawItemData)
+                ),
+                nextPageId: data?.[1],
+            };
+        }
+
+        function itemBulkInfoParse(rawItemData) {
+            return {
+                productId: rawItemData?.[0],
+                descriptionFull: rawItemData?.[1]?.[2],
+                fileName: rawItemData?.[1]?.[3],
+                dateTaken: rawItemData?.[1]?.[6],
+                dateUploaded: rawItemData?.[1]?.[8],
+                size: rawItemData?.[1]?.[9],
+                takesUpSpace: rawItemData?.[1]?.at(-1)?.[0] === 1,
+                spaceTaken: rawItemData?.[1]?.at(-1)?.[1],
+                isOriginalQuality: rawItemData?.[1]?.at(-1)?.[2] === 2,
+            };
+        }
+
+        function bulkInfo(data) {
+            return data.map((rawItemData) => itemBulkInfoParse(rawItemData));
+        }
+
+        if (!data?.length) return null;
+        if (rpcid === "lcxiM") return libraryTimelinePage(data);
+        if (rpcid === "nMFwOc") return lockedFolderPage(data);
+        if (rpcid === "EzkLib") return libraryGenericPage(data);
+        if (rpcid === "F2A0H") return linksPage(data);
+        if (rpcid === "Z5xsfc") return albumsPage(data);
+        if (rpcid === "snAcKc") return albumItemsPage(data);
+        if (rpcid === "zy0IHe") return trashPage(data);
+        if (rpcid === "EWgK9e") return bulkInfo(data);
+    }
+
+    const windowGlobalData = {
+        rapt: window.WIZ_global_data.Dbw5Ud,
+        account: window.WIZ_global_data.oPEP7c,
+        "f.sid": window.WIZ_global_data.FdrFJe,
+        bl: window.WIZ_global_data.cfb2h,
+        path: window.WIZ_global_data.eptZe,
+        at: window.WIZ_global_data.SNlM0e,
+    };
+
+    class Api {
+        async makeApiRequest(rpcid, requestData) {
+            requestData = [
+                [[rpcid, JSON.stringify(requestData), null, "generic"]],
+            ];
+            let rpcMap = {
+                lcxiM: "library timeline page",
+                nMFwOc: "locked folder page",
+                EzkLib: "library generic page",
+                F2A0H: "links page",
+                Z5xsfc: "albums page",
+                snAcKc: "album items page",
+                zy0IHe: "trash page",
+                EWgK9e: "bulk info",
+            };
+            console.log("Making API request with RPC ID " + rpcid); //#RDA
+            console.log("This correlates to the function " + rpcMap[rpcid]); // #RDA
+            const requestDataString = `f.req=${encodeURIComponent(
+                JSON.stringify(requestData)
+            )}&at=${encodeURIComponent(windowGlobalData.at)}&`;
+
+            const params = {
+                rpcids: rpcid,
+                "source-path": window.location.pathname,
+                "f.sid": windowGlobalData["f.sid"],
+                bl: windowGlobalData.bl,
+                pageId: "none",
+                rt: "c",
+            };
+            // if in locked folder send rapt
+            if (windowGlobalData.rapt) params.rapt = windowGlobalData.rapt;
+            const paramsString = Object.keys(params)
+                .map((key) => `${key}=${encodeURIComponent(params[key])}`)
+                .join("&");
+            const url = `https://photos.google.com${windowGlobalData.path}data/batchexecute?${paramsString}`;
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        "content-type":
+                            "application/x-www-form-urlencoded;charset=UTF-8",
+                    },
+                    body: requestDataString,
+                    method: "POST",
+                    credentials: "include",
+                });
+
+                const responseBody = await response.text();
+                const jsonLines = responseBody
+                    .split("\n")
+                    .filter((line) => line.includes("wrb.fr"));
+                let parsedData = JSON.parse(jsonLines[0]);
+                return JSON.parse(parsedData[0][2]);
+            } catch (error) {
+                console.error(`Error in ${rpcid} request:`, error);
+                throw error;
+            }
+        }
+
+        async listItemsByTakenDate(
+            timestamp = null,
+            source = null,
+            pageId = null,
+            parseResponse = true
+        ) {
+            // Retrieves media items created before the provided timestamp
+            if (source === "library") source = 1;
+            else if (source === "archive") source = 2;
+            else if (!source) source = 3; //both
+
+            const rpcid = "lcxiM";
+            const limit = 500; // 500 is max
+            const requestData = [pageId, timestamp, limit, null, 1, source];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listItemsByTakenDate:", error);
+                throw error;
+            }
+        }
+
+        async listItemsByUploadedDate(pageId = null, parseResponse = true) {
+            const rpcid = "EzkLib";
+            const requestData = ["", [[4, "ra", 0, 0]], pageId];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listItemsByUploadedDate:", error);
+                throw error;
+            }
+        }
+
+        async search(searchQuery, pageId = null, parseResponse = true) {
+            const rpcid = "EzkLib";
+            const requestData = [searchQuery, null, pageId];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in search:", error);
+                throw error;
+            }
+        }
+
+        async listFavorites(pageId = null, parseResponse = true) {
+            const rpcid = "EzkLib";
+            const requestData = ["Favorites", [[5, "8", 0, 9]], pageId];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listFavorites:", error);
+                throw error;
+            }
+        }
+
+        async listTrashItems(pageId = null, parseResponse = true) {
+            const rpcid = "zy0IHe";
+            const requestData = [pageId];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listTrashItems:", error);
+                throw error;
+            }
+        }
+
+        async listLockedFolderItems(pageId = null, parseResponse = true) {
+            const rpcid = "nMFwOc";
+            const requestData = [pageId];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listLockedFolderItems:", error);
+                throw error;
+            }
+        }
+
+        async moveMediaToTrash(mediaIdList) {
+            const rpcid = "XwAOJf";
+            const requestData = [null, 1, mediaIdList, 3];
+            // note: It seems that '3' here corresponds to items' location
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response[0];
+            } catch (error) {
+                console.error("Error in moveMediaToTrash:", error);
+                throw error;
+            }
+        }
+
+        async restoreFromTrash(mediaIdList) {
+            const rpcid = "XwAOJf";
+            const requestData = [null, 3, mediaIdList, 2];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response[0];
+            } catch (error) {
+                console.error("Error in restoreFromTrash:", error);
+                throw error;
+            }
+        }
+
+        async listSharedLinks(pageId = null, parseResponse = true) {
+            const rpcid = "F2A0H";
+            const requestData = [pageId, null, 2, null, 3];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listSharedLinks:", error);
+                throw error;
+            }
+        }
+
+        async listAlbums(pageId = null, parseResponse = true) {
+            const rpcid = "Z5xsfc";
+            const requestData = [pageId, null, null, null, 1, null, null, 100];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listAlbums:", error);
+                throw error;
+            }
+        }
+
+        async listAlbumItems(albumId, pageId = null, parseResponse = true) {
+            // list items of an album or a shared link with the given id
+            const rpcid = "snAcKc";
+            const requestData = [albumId, pageId, null, null, 1];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in listAlbumItems:", error);
+                throw error;
+            }
+        }
+
+        async removeFromAlbum(albumItemIdList) {
+            const rpcid = "ycV3Nd";
+            const requestData = [albumItemIdList];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in removeFromAlbum:", error);
+                throw error;
+            }
+        }
+
+        async createEmptyAlbum(albumName) {
+            // returns string id of the created album
+            const rpcid = "OXvT9d";
+            let requestData = [albumName, null, 2];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response[0][0];
+            } catch (error) {
+                console.error("Error in createEmptyAlbum:", error);
+                throw error;
+            }
+        }
+
+        async addItemsToAlbum(productIdList, albumId = null, albumName = null) {
+            // supply album ID for adding to an existing album, or a name for a new one
+            const rpcid = "E1Cajb";
+            let requestData = null;
+
+            if (albumName) requestData = [productIdList, null, albumName];
+            else if (albumId) requestData = [productIdList, albumId];
+
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in addItemsToAlbum:", error);
+                throw error;
+            }
+        }
+
+        async setFavorite(mediaIdList, action = true) {
+            if (action === true) action = 1; //set favorite
+            else if (action === false) action = 2; //un favorite
+            mediaIdList = mediaIdList.map((item) => [null, item]);
+            const rpcid = "Ftfh0";
+            const requestData = [mediaIdList, [action]];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in setFavorite:", error);
+                throw error;
+            }
+        }
+
+        async setArchive(mediaIdList, action = true) {
+            if (action === true) action = 1; // send to archive
+            else if (action === false) action = 2; // un archive
+
+            mediaIdList = mediaIdList.map((item) => [
+                null,
+                [action],
+                [null, item],
+            ]);
+            const rpcid = "w7TP3c";
+            const requestData = [mediaIdList, null, 1];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in setArchive:", error);
+                throw error;
+            }
+        }
+
+        async moveToLockedFolder(mediaIdList) {
+            const rpcid = "StLnCe";
+            const requestData = [mediaIdList, []];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in moveToLockedFolder:", error);
+                throw error;
+            }
+        }
+
+        async removeFromLockedFolder(mediaIdList) {
+            const rpcid = "Pp2Xxe";
+            const requestData = [mediaIdList];
+            try {
+                const response = await this.makeApiRequest(rpcid, requestData);
+                return response;
+            } catch (error) {
+                console.error("Error in removeFromLockedFolder:", error);
+                throw error;
+            }
+        }
+
+        async getBatchMediaInfo(productIdList, parseResponse = true) {
+            const rpcid = "EWgK9e";
+            productIdList = productIdList.map((id) => [id]);
+            const requestData = [
+                [
+                    [productIdList],
+                    [
+                        [
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            [],
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            [],
+                        ],
+                    ],
+                ],
+            ];
+            try {
+                let response = await this.makeApiRequest(rpcid, requestData);
+                response = response[0][1];
+                if (parseResponse) return parser(response, rpcid);
+                return response;
+            } catch (error) {
+                console.error("Error in getBatchMediaInfo:", error);
+                throw error;
+            }
+        }
+    }
+
+    function log(logMessage, type = null) {
+        const logPrefix = "[GPTK]";
+        // Create a new div for the log message
+        const logDiv = document.createElement("div");
+        logDiv.style.whiteSpace = "pre";
+        logDiv.textContent = logMessage;
+
+        if (type) logDiv.classList.add(type);
+        console.log(`${logPrefix} ${logMessage}`);
+
+        // Append the log message to the log container
         try {
-          response = await fetch(url, {method: 'HEAD'});
-          const newUrl = response.url;
-          const matches = newUrl.match(/\/([^\/]+)$/);
-          if (matches) {
-            const rpcId = matches[1];
-            const shortRestId = restId.slice(0,7) + '...' + restId.slice(-10);
-            log(`REST ID ${shortRestId} maps to RPC ID ${rpcId}`);
-            newMappings[rpcId] = restId;
-          }
+            const logContainer = document.querySelector("#logArea");
+            logContainer.appendChild(logDiv);
+            if (document.querySelector("#autoScroll").checked)
+                logDiv.scrollIntoView();
+        } catch (error) {
+            console.error(`${logPrefix} ${error}`);
         }
-        catch(error) {
-          log("Error making HEAD request:" + error.toString(), 'error');
-        }
-      }
-      return newMappings;
-    }
-  }
-
-
-  function dateToHHMMSS(date) {
-    // Options for formatting
-    let options = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-
-    // Formatted time string
-    return date.toLocaleTimeString('en-GB', options);
-  }
-  function timeToHHMMSS(time) {
-    const seconds = Math.floor((time / 1000) % 60);
-    const minutes = Math.floor((time / (1000 * 60)) % 60);
-    const hours = Math.floor((time / (1000 * 60 * 60)) % 24);
-    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    return formattedTime;
-  }
-  function isPatternValid(pattern) {
-    try {
-      new RegExp(pattern);
-      return true;
-    } catch (e) {
-      return e;
-    }
-  }
-
-  class Core {
-    constructor() {
-      this.isProcessRunning = false;
-      this.api = new Api();
     }
 
-    async getAndFilterMedia(filter, source) {
-      let mediaItems = [];
-      if (source === 'library') {
-        log('Reading library');
-        if (filter.dateType === 'uploaded') mediaItems = await this.getLibraryItemsByUploadDate(filter);
-        else if (filter.dateType === 'taken') mediaItems = await this.getLibraryItemsByTakenDate(filter);
-      }
-      else if (source === 'search') {
-        log('Reading search results');
-        mediaItems = await this.apiUtils.getAllSearchItems(filter.searchQuery);
-      }
-      else if (source === 'trash') {
-        log('Getting trash items');
-        mediaItems = await this.apiUtils.getAllTrashItems();
-      }
-      else if (source === 'lockedFolder') {
-        log('Getting locked folder items');
-        mediaItems = await this.apiUtils.getAllLockedFolderItems();
-      }
-      else if (source === 'favorites') {
-        log('Getting favorite items');
-        mediaItems = await this.apiUtils.getAllFavoriteItems();
-      }
-      else if (source === 'sharedLinks') {
-        log('Getting shared links');
-        const sharedLinks = await this.apiUtils.getAllSharedLinks();
-        if (!sharedLinks) {
-          log('No shared links found', 'error');
-          return;
+    function splitArrayIntoChunks(arr, chunkSize = 500) {
+        chunkSize = parseInt(chunkSize);
+        const chunks = [];
+        for (let i = 0; i < arr.length; i += chunkSize) {
+            chunks.push(arr.slice(i, i + chunkSize));
         }
-        log(`Shared Links Found: ${sharedLinks.length}`);
-        for (const sharedLink of sharedLinks) {
-          log('Getting shared link items');
-          const sharedLinkItems = await this.apiUtils.getAllMediaInSharedLink(sharedLink.linkId);
-          mediaItems.push(...sharedLinkItems);
-        }
-      }
-      else if (source === 'albums') {
-        if (!filter.albumsInclude) {
-          log('No target album!', 'error');
-          throw new Error('no target album!');
-        }
-        filter.albumsInclude = Array.isArray(filter.albumsInclude) ? filter.albumsInclude : [filter.albumsInclude];
-        for (const albumId of filter.albumsInclude) {
-          log('Getting album items');
-          mediaItems.push(...await this.apiUtils.getAllMediaInAlbum(albumId));
-        }
-      }
-
-      log('Source read complete');
-      log(`Found items: ${mediaItems?.length}`);
-
-      if (!this.isProcessRunning) return;
-
-      if (mediaItems?.length && (filter.lowerBoundaryDate || filter.higherBoundaryDate) && source !== 'library') {
-        // library has its own date filter
-        mediaItems = this.filterByDate(mediaItems, filter);
-      }
-
-      if (mediaItems?.length && filter.albumsExclude) {
-        const itemsToExclude = [];
-        filter.albumsExclude = Array.isArray(filter.albumsExclude) ? filter.albumsExclude : [filter.albumsExclude];
-
-        for (const albumId of filter.albumsExclude) {
-          log('Getting album items to exclude');
-          itemsToExclude.push(...await this.apiUtils.getAllMediaInAlbum(albumId));
-        }
-        log('Excluding album items');
-        mediaItems = mediaItems.filter(mediaItem => {
-          return !itemsToExclude.some(excludeItem => excludeItem.mediaId === mediaItem.mediaId);
-        });
-
-      }
-      if (mediaItems?.length && filter.excludeShared) {
-        log('Getting shared links\' items to exclude');
-        const itemsToExclude = [];
-        const sharedLinks = await this.apiUtils.getAllSharedLinks();
-        for (const sharedLink of sharedLinks) {
-          const sharedLinkItems = await this.apiUtils.getAllMediaInSharedLink(sharedLink.linkId);
-          itemsToExclude.push(...sharedLinkItems);
-        }
-        log('Excluding shared items');
-        mediaItems = mediaItems.filter(mediaItem => {
-          return !itemsToExclude.some(excludeItem => excludeItem.mediaId === mediaItem.mediaId);
-        });
-
-      }
-      if (mediaItems?.length && filter.owned) mediaItems = this.filterOwned(mediaItems, filter);
-      if (mediaItems?.length && filter.archived) mediaItems = this.filterArchived(mediaItems, filter);
-      if (mediaItems?.length && filter.favorite || filter.excludeFavorites) mediaItems = this.filterFavorite(mediaItems, filter);
-      if (mediaItems?.length && filter.type) mediaItems = this.filterByMediaType(mediaItems, filter);
-
-      if (mediaItems?.length && (filter.space
-        || filter.quality
-        || filter.lowerBoundarySize
-        || filter.higherBoundarySize
-        || filter.fileNameRegex
-        || filter.descriptionRegex)) {
-        mediaItems = await this.extendMediaItemsWithMediaInfo(mediaItems);
-        if (mediaItems?.length && filter.fileNameRegex) mediaItems = this.fileNameFilter(mediaItems, filter);
-        if (mediaItems?.length && filter.descriptionRegex) mediaItems = this.desctiptionFilter(mediaItems, filter);
-        if (mediaItems?.length && filter.space) mediaItems = this.spaceFilter(mediaItems, filter);
-        if (mediaItems?.length && filter.quality) mediaItems = this.qualityFilter(mediaItems, filter);
-        if (mediaItems?.length && (filter.lowerBoundarySize || filter.higherBoundarySize)) mediaItems = this.sizeFilter(mediaItems, filter);
-      }
-      return mediaItems;
+        return chunks;
     }
 
-    async extendMediaItemsWithMediaInfo(mediaItems) {
-      const mediaInfoData = await this.apiUtils.getBatchMediaInfoChunked(mediaItems);
+    const apiSettingsDefault = {
+        maxConcurrentApiReq: 3,
+        operationSize: 500,
+        lockedFolderOpSize: 100,
+        infoSize: 5000,
+    };
 
-      const extendedMediaItems = mediaItems.map(item => {
-        const matchingInfoItem = mediaInfoData.find(infoItem => infoItem.productId === item.productId);
-        return { ...item, ...matchingInfoItem };
-      });
-      return extendedMediaItems;
+    class ApiUtils {
+        constructor(core = null, settings) {
+            this.api = new Api();
+            this.executeWithConcurrency =
+                this.executeWithConcurrency.bind(this);
+            this.getAllItems = this.getAllItems.bind(this);
+            this.core = core;
+            let {
+                maxConcurrentApiReq,
+                operationSize,
+                infoSize,
+                lockedFolderOpSize,
+            } = settings || apiSettingsDefault;
+
+            this.maxConcurrentApiReq = parseInt(maxConcurrentApiReq);
+            this.operationSize = parseInt(operationSize);
+            this.lockedFolderOpSize = parseInt(lockedFolderOpSize);
+            this.infoSize = parseInt(infoSize);
+        }
+
+        async executeWithConcurrency(
+            apiMethod,
+            successCheck,
+            operationSize,
+            itemsArray,
+            ...args
+        ) {
+            const promisePool = [];
+            const results = [];
+            const chunkedItems = splitArrayIntoChunks(
+                itemsArray,
+                operationSize
+            );
+
+            for (const chunk of chunkedItems) {
+                if (!this.core.isProcessRunning) return;
+                while (promisePool.length >= this.maxConcurrentApiReq) {
+                    await Promise.race(promisePool);
+                    promisePool.shift();
+                }
+
+                log(`Processing ${chunk.length} items`);
+
+                const promise = apiMethod.call(this.api, chunk, ...args); // Call apiMethod with correct context
+                promisePool.push(promise);
+
+                promise
+                    .then((result) => {
+                        results.push(...result);
+                        if (successCheck && !successCheck(result)) {
+                            log(
+                                `Error executing action ${apiMethod.name}`,
+                                "error"
+                            );
+                            promisePool.shift();
+                        }
+                    }) // Remove fulfilled promise from pool
+                    .catch((error) => {
+                        log(`${apiMethod.name} Api error ${error}`, "error");
+                        promisePool.shift();
+                    });
+            }
+            await Promise.all(promisePool);
+            return results;
+        }
+
+        async getAllItems(apiMethod, ...args) {
+            const items = [];
+            let nextPageId = null;
+            do {
+                if (!this.core.isProcessRunning) return;
+                const page = await apiMethod.call(
+                    this.api,
+                    ...args,
+                    nextPageId
+                );
+                if (!page?.items) {
+                    log("No items found!", "error");
+                    return [];
+                }
+                items.push(...page.items);
+                log(`Found ${page.items.length} items`);
+                nextPageId = page.nextPageId;
+            } while (nextPageId);
+            return items;
+        }
+
+        async getAllAlbums() {
+            return await this.getAllItems(this.api.listAlbums);
+        }
+
+        async getAllSharedLinks() {
+            return await this.getAllItems(this.api.listSharedLinks);
+        }
+
+        async getAllMediaInSharedLink(sharedLinkId) {
+            return await this.getAllItems(
+                this.api.listAlbumItems,
+                sharedLinkId
+            );
+        }
+
+        async getAllMediaInAlbum(albumId) {
+            return await this.getAllItems(this.api.listAlbumItems, albumId);
+        }
+
+        async getAllTrashItems() {
+            return await this.getAllItems(this.api.listTrashItems);
+        }
+
+        async getAllFavoriteItems() {
+            return await this.getAllItems(this.api.listFavorites);
+        }
+
+        async getAllSearchItems(searchQuery) {
+            return await this.getAllItems(this.api.search, searchQuery);
+        }
+
+        async getAllLockedFolderItems() {
+            return await this.getAllItems(this.api.listLockedFolderItems);
+        }
+
+        async moveToLockedFolder(mediaItems) {
+            log(`Moving ${mediaItems.length} items to locked folder`);
+            const isSuccess = (result) => Array.isArray(result);
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.moveToLockedFolder,
+                isSuccess,
+                this.lockedFolderOpSize,
+                mediaIdList
+            );
+        }
+
+        async removeFromLockedFolder(mediaItems) {
+            log(`Moving ${mediaItems.length} items out of locked folder`);
+            const isSuccess = (result) => Array.isArray(result);
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.removeFromLockedFolder,
+                isSuccess,
+                this.lockedFolderOpSize,
+                mediaIdList
+            );
+        }
+
+        async moveToTrash(mediaItems) {
+            log(`Moving ${mediaItems.length} items to trash`);
+            const isSuccess = (result) => Array.isArray(result);
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.moveMediaToTrash,
+                isSuccess,
+                this.operationSize,
+                mediaIdList
+            );
+        }
+
+        async restoreFromTrash(trashItems) {
+            log(`Restoring ${trashItems.length} items from trash`);
+            const isSuccess = (result) => Array.isArray(result);
+            const mediaIdList = trashItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.restoreFromTrash,
+                isSuccess,
+                this.operationSize,
+                mediaIdList
+            );
+        }
+
+        async sendToArchive(mediaItems) {
+            log(`Sending ${mediaItems.length} items to archive`);
+            const isSuccess = (result) => Array.isArray(result);
+            mediaItems = mediaItems.filter((item) => item?.isArchived !== true);
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            if (!mediaItems) {
+                log("All target items are already archived!");
+                return;
+            }
+            await this.executeWithConcurrency(
+                this.api.setArchive,
+                isSuccess,
+                this.operationSize,
+                mediaIdList,
+                true
+            );
+        }
+
+        async unArchive(mediaItems) {
+            log(`Removing ${mediaItems.length} items from archive`);
+            const isSuccess = (result) => Array.isArray(result);
+            mediaItems = mediaItems.filter(
+                (item) => item?.isArchived !== false
+            );
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            if (!mediaItems) {
+                log("All target items are not archived!");
+                return;
+            }
+            await this.executeWithConcurrency(
+                this.api.setArchive,
+                isSuccess,
+                this.operationSize,
+                mediaIdList,
+                false
+            );
+        }
+
+        async setAsFavorite(mediaItems) {
+            log(`Setting ${mediaItems.length} items as favorite`);
+            const isSuccess = (result) => Array.isArray(result);
+            mediaItems = mediaItems.filter((item) => item?.isFavorite !== true);
+            if (!mediaItems) {
+                log("All target items are already favorite!");
+                return;
+            }
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.setFavorite,
+                isSuccess,
+                this.operationSize,
+                mediaIdList,
+                true
+            );
+        }
+
+        async unFavorite(mediaItems) {
+            log(`Removing ${mediaItems.length} items from favorites`);
+            const isSuccess = (result) => Array.isArray(result);
+            mediaItems = mediaItems.filter(
+                (item) => item?.isFavorite !== false
+            );
+            if (!mediaItems) {
+                log("All target items are not favorite!");
+                return;
+            }
+            const mediaIdList = mediaItems.map((item) => item.mediaId);
+            await this.executeWithConcurrency(
+                this.api.setFavorite,
+                isSuccess,
+                this.operationSize,
+                mediaIdList,
+                false
+            );
+        }
+
+        async addToExistingAlbum(mediaItems, targetAlbumId) {
+            log(`Adding ${mediaItems.length} items to album`);
+            const isSuccess = (result) => Array.isArray(result);
+            const productIdList = mediaItems.map((item) => item.productId);
+            await this.executeWithConcurrency(
+                this.api.addItemsToAlbum,
+                isSuccess,
+                this.operationSize,
+                productIdList,
+                targetAlbumId
+            );
+        }
+
+        async addToNewAlbum(mediaItems, targetAlbumName) {
+            log(`Creating new album "${targetAlbumName}"`);
+            const targetAlbumId = await this.api.createEmptyAlbum(
+                targetAlbumName
+            );
+            await this.addToExistingAlbum(mediaItems, targetAlbumId);
+        }
+
+        async getBatchMediaInfoChunked(mediaItems) {
+            log("Getting items' media info");
+            const productIdList = mediaItems.map((item) => item.productId);
+            const mediaInfoData = await this.executeWithConcurrency(
+                this.api.getBatchMediaInfo,
+                null,
+                this.infoSize,
+                productIdList
+            );
+            return mediaInfoData;
+        }
+
+        async confirmWebServerRunning() {
+            try {
+                let userId = window.WIZ_global_data.oPEP7c;
+                let response = await fetch(
+                    "http://localhost:5222/api/RpcScrapedVideos",
+                    {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-UserId": userId,
+                        },
+                    }
+                );
+            } catch (error) {
+                log("Error:" + error.toString(), "error");
+                return false;
+            }
+            return true;
+        }
+
+        async sendToServer(mediaItems) {            
+            // reduce media items to properties we care about and with property names matching the
+            // schema of the WebHelper API's RpcScrapedVideo object.
+            // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
+            let minimalMediaItems = mediaItems.map((item) => {
+                return {
+                    size: item.size,
+                    durationMs: item.duration || item.durationMs,
+                    googleId: item.googleId, // would only be present on recursive call to this function, after doing REST ID lookups
+                    rpcId: item.productId || item.rpcId,
+                };
+            });
+
+            let json = JSON.stringify(minimalMediaItems, null, 2);
+
+            log("Sending video data to server");
+            let response;
+            let userId = window.WIZ_global_data.oPEP7c;
+            try {
+                response = await fetch(
+                    "http://localhost:5222/api/RpcScrapedVideos",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-UserId": userId,
+                        },
+                        body: json,
+                    }
+                );
+            } catch (error) {
+                log("Error:" + error.toString(), "error");
+                throw error;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+                log("Response:" + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log("Error parsing response JSON:" + error.toString(), "error");
+                throw error;
+            }
+
+            // Continue function only if the server's response indicates it has records missing RPC ID.
+            // recordsWithNoRpcId is a list of REST IDs for such database records.
+            if (!data.recordsWithNoRpcId?.length > 0) {
+                if (data.recordsNotFound?.length) {
+                    alert(
+                        "Some records could not be updated because there was no match for their RPC ID.\n" +
+                        "Normally we'd offer to try to convert REST IDs to RPC IDs for these records, but the server didn't indicate any records were missing RPC ID.\n" +
+                        "This might mean you need to run GoogleScraper."
+                    );
+                }
+                return;
+            }
+
+            const shouldGetRpcIds = await getUserConfirmationInModal(
+                `There were ${data.recordsWithNoRpcId.length} records in the database with no RPC ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to RPC IDs ?`
+            );
+            if (shouldGetRpcIds) {
+                // of these id mappings are for db records having REST ID but no RPC ID.
+                let idMappings = await this.convertRestIdsToRpcIds(
+                    data.recordsWithNoRpcId
+                );
+                if (Object.keys(idMappings).length > 0) {
+                    let fixedMediaItems = Object.keys(idMappings)
+                        .map((rpcId) => {
+                            const restId = idMappings[rpcId];
+                            // try to attach REST ID to media items that failed to update a record on first attempt.
+                            // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
+                            // but we still want to let the server know of the id mapping
+                            const mediaItem = minimalMediaItems.find(
+                                (item) => item.rpcId === rpcId
+                            );
+                            if (mediaItem === undefined) {
+                                log(
+                                    "Mapped REST ID " +
+                                        restId +
+                                        " to rpc ID " +
+                                        rpcId +
+                                        " but scrape did not give a media item with this rpc ID",
+                                    "error"
+                                );
+                            }
+                            return { ...mediaItem, googleId: restId };
+                        })
+                        .filter((g) => g.rpcId && g.googleId);
+                    // send the fixed media items to the server
+                    this.sendToServer(fixedMediaItems);
+                }
+            }
+        }
+
+        // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
+        async convertRestIdsToRpcIds(restIds) {
+            log(
+                `Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`
+            );
+            const urlBase = "https://photos.google.com/lr/photo/";
+            let callCount = 0;
+            const newMappings = {};
+            for (let restId of restIds) {
+                if (callCount++ % 5 == 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+                }
+                const url = urlBase + restId;
+                console.log("HEAD call to : " + url);
+                let response;
+                try {
+                    response = await fetch(url, { method: "HEAD" });
+                    const newUrl = response.url;
+                    const matches = newUrl.match(/\/([^\/]+)$/);
+                    if (matches) {
+                        const rpcId = matches[1];
+                        const shortRestId =
+                            restId.slice(0, 7) + "..." + restId.slice(-10);
+                        log(`REST ID ${shortRestId} maps to RPC ID ${rpcId}`);
+                        newMappings[rpcId] = restId;
+                    }
+                } catch (error) {
+                    log(
+                        "Error making HEAD request:" + error.toString(),
+                        "error"
+                    );
+                }
+            }
+            return newMappings;
+        }
     }
 
-    async getLibraryItemsByTakenDate(filter) {
-      let source;
-      if (filter.archived === 'true') {
-        source = 'archive';
-      }
-      else if (filter.archived === 'false') {
-        source = 'library';
-      }
+    function dateToHHMMSS(date) {
+        // Options for formatting
+        let options = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
 
-      let lowerBoundaryDate = new Date(filter.lowerBoundaryDate).getTime();
-      let higherBoundaryDate = new Date(filter.higherBoundaryDate).getTime();
+        // Formatted time string
+        return date.toLocaleTimeString("en-GB", options);
+    }
+    function timeToHHMMSS(time) {
+        const seconds = Math.floor((time / 1000) % 60);
+        const minutes = Math.floor((time / (1000 * 60)) % 60);
+        const hours = Math.floor((time / (1000 * 60 * 60)) % 24);
+        const formattedTime = `${hours.toString().padStart(2, "0")}:${minutes
+            .toString()
+            .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+        return formattedTime;
+    }
+    function isPatternValid(pattern) {
+        try {
+            new RegExp(pattern);
+            return true;
+        } catch (e) {
+            return e;
+        }
+    }
 
-      lowerBoundaryDate = isNaN(lowerBoundaryDate) ? -Infinity : lowerBoundaryDate;
-      higherBoundaryDate = isNaN(higherBoundaryDate) ? Infinity : higherBoundaryDate;
+    class Core {
+        constructor() {
+            this.isProcessRunning = false;
+            this.api = new Api();
+        }
 
-      const mediaItems = [];
+        async getAndFilterMedia(filter, source) {
+            let mediaItems = [];
+            if (source === "library") {
+                log("Reading library");
+                if (filter.dateType === "uploaded")
+                    mediaItems = await this.getLibraryItemsByUploadDate(filter);
+                else if (filter.dateType === "taken")
+                    mediaItems = await this.getLibraryItemsByTakenDate(filter);
+            } else if (source === "search") {
+                log("Reading search results");
+                mediaItems = await this.apiUtils.getAllSearchItems(
+                    filter.searchQuery
+                );
+            } else if (source === "trash") {
+                log("Getting trash items");
+                mediaItems = await this.apiUtils.getAllTrashItems();
+            } else if (source === "lockedFolder") {
+                log("Getting locked folder items");
+                mediaItems = await this.apiUtils.getAllLockedFolderItems();
+            } else if (source === "favorites") {
+                log("Getting favorite items");
+                mediaItems = await this.apiUtils.getAllFavoriteItems();
+            } else if (source === "sharedLinks") {
+                log("Getting shared links");
+                const sharedLinks = await this.apiUtils.getAllSharedLinks();
+                if (!sharedLinks) {
+                    log("No shared links found", "error");
+                    return;
+                }
+                log(`Shared Links Found: ${sharedLinks.length}`);
+                for (const sharedLink of sharedLinks) {
+                    log("Getting shared link items");
+                    const sharedLinkItems =
+                        await this.apiUtils.getAllMediaInSharedLink(
+                            sharedLink.linkId
+                        );
+                    mediaItems.push(...sharedLinkItems);
+                }
+            } else if (source === "albums") {
+                if (!filter.albumsInclude) {
+                    log("No target album!", "error");
+                    throw new Error("no target album!");
+                }
+                filter.albumsInclude = Array.isArray(filter.albumsInclude)
+                    ? filter.albumsInclude
+                    : [filter.albumsInclude];
+                for (const albumId of filter.albumsInclude) {
+                    log("Getting album items");
+                    mediaItems.push(
+                        ...(await this.apiUtils.getAllMediaInAlbum(albumId))
+                    );
+                }
+            }
 
-      let nextPageId = null;
+            log("Source read complete");
+            log(`Found items: ${mediaItems?.length}`);
 
-      if ((Number.isInteger(lowerBoundaryDate || Number.isInteger(higherBoundaryDate))) && filter.intervalType === 'include') {
-        let nextPageTimestamp = higherBoundaryDate !== Infinity ? higherBoundaryDate : null;
-        do {
-          if (!this.isProcessRunning) return;
-          let mediaPage = await this.api.listItemsByTakenDate(nextPageTimestamp, source, nextPageId);
-          if (!mediaPage?.items?.length) {
-            log('No media items on the page!', 'error');
+            if (!this.isProcessRunning) return;
+
+            if (
+                mediaItems?.length &&
+                (filter.lowerBoundaryDate || filter.higherBoundaryDate) &&
+                source !== "library"
+            ) {
+                // library has its own date filter
+                mediaItems = this.filterByDate(mediaItems, filter);
+            }
+
+            if (mediaItems?.length && filter.albumsExclude) {
+                const itemsToExclude = [];
+                filter.albumsExclude = Array.isArray(filter.albumsExclude)
+                    ? filter.albumsExclude
+                    : [filter.albumsExclude];
+
+                for (const albumId of filter.albumsExclude) {
+                    log("Getting album items to exclude");
+                    itemsToExclude.push(
+                        ...(await this.apiUtils.getAllMediaInAlbum(albumId))
+                    );
+                }
+                log("Excluding album items");
+                mediaItems = mediaItems.filter((mediaItem) => {
+                    return !itemsToExclude.some(
+                        (excludeItem) =>
+                            excludeItem.mediaId === mediaItem.mediaId
+                    );
+                });
+            }
+            if (mediaItems?.length && filter.excludeShared) {
+                log("Getting shared links' items to exclude");
+                const itemsToExclude = [];
+                const sharedLinks = await this.apiUtils.getAllSharedLinks();
+                for (const sharedLink of sharedLinks) {
+                    const sharedLinkItems =
+                        await this.apiUtils.getAllMediaInSharedLink(
+                            sharedLink.linkId
+                        );
+                    itemsToExclude.push(...sharedLinkItems);
+                }
+                log("Excluding shared items");
+                mediaItems = mediaItems.filter((mediaItem) => {
+                    return !itemsToExclude.some(
+                        (excludeItem) =>
+                            excludeItem.mediaId === mediaItem.mediaId
+                    );
+                });
+            }
+            if (mediaItems?.length && filter.owned)
+                mediaItems = this.filterOwned(mediaItems, filter);
+            if (mediaItems?.length && filter.archived)
+                mediaItems = this.filterArchived(mediaItems, filter);
+            if (
+                (mediaItems?.length && filter.favorite) ||
+                filter.excludeFavorites
+            )
+                mediaItems = this.filterFavorite(mediaItems, filter);
+            if (mediaItems?.length && filter.type)
+                mediaItems = this.filterByMediaType(mediaItems, filter);
+
+            if (
+                mediaItems?.length &&
+                (filter.space ||
+                    filter.quality ||
+                    filter.lowerBoundarySize ||
+                    filter.higherBoundarySize ||
+                    filter.fileNameRegex ||
+                    filter.descriptionRegex)
+            ) {
+                mediaItems = await this.extendMediaItemsWithMediaInfo(
+                    mediaItems
+                );
+                if (mediaItems?.length && filter.fileNameRegex)
+                    mediaItems = this.fileNameFilter(mediaItems, filter);
+                if (mediaItems?.length && filter.descriptionRegex)
+                    mediaItems = this.desctiptionFilter(mediaItems, filter);
+                if (mediaItems?.length && filter.space)
+                    mediaItems = this.spaceFilter(mediaItems, filter);
+                if (mediaItems?.length && filter.quality)
+                    mediaItems = this.qualityFilter(mediaItems, filter);
+                if (
+                    mediaItems?.length &&
+                    (filter.lowerBoundarySize || filter.higherBoundarySize)
+                )
+                    mediaItems = this.sizeFilter(mediaItems, filter);
+            }
             return mediaItems;
-          }
-          nextPageId = mediaPage.nextPageId;
-          nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
-          mediaPage.items = mediaPage.items.filter(item => item.dateTaken >= lowerBoundaryDate && item.dateTaken <= higherBoundaryDate);
-          if (mediaPage?.items?.length === 0) continue;
-          log(`Found ${mediaPage?.items?.length} items`);
-          mediaItems.push(...mediaPage.items);
-        } while (nextPageTimestamp && nextPageTimestamp > lowerBoundaryDate);
-      } else if ((Number.isInteger(lowerBoundaryDate || Number.isInteger(higherBoundaryDate))) && filter.intervalType === 'exclude') {
-        let nextPageTimestamp = null;
-        do {
-          if (!this.isProcessRunning) return;
-          let mediaPage = await this.api.listItemsByTakenDate(nextPageTimestamp, source, nextPageId);
-          if (!mediaPage?.items?.length) {
-            log('No media items on the page!', 'error');
+        }
+
+        async extendMediaItemsWithMediaInfo(mediaItems) {
+            const mediaInfoData = await this.apiUtils.getBatchMediaInfoChunked(
+                mediaItems
+            );
+
+            const extendedMediaItems = mediaItems.map((item) => {
+                const matchingInfoItem = mediaInfoData.find(
+                    (infoItem) => infoItem.productId === item.productId
+                );
+                return { ...item, ...matchingInfoItem };
+            });
+            return extendedMediaItems;
+        }
+
+        async getLibraryItemsByTakenDate(filter) {
+            let source;
+            if (filter.archived === "true") {
+                source = "archive";
+            } else if (filter.archived === "false") {
+                source = "library";
+            }
+
+            let lowerBoundaryDate = new Date(
+                filter.lowerBoundaryDate
+            ).getTime();
+            let higherBoundaryDate = new Date(
+                filter.higherBoundaryDate
+            ).getTime();
+
+            lowerBoundaryDate = isNaN(lowerBoundaryDate)
+                ? -Infinity
+                : lowerBoundaryDate;
+            higherBoundaryDate = isNaN(higherBoundaryDate)
+                ? Infinity
+                : higherBoundaryDate;
+
+            const mediaItems = [];
+
+            let nextPageId = null;
+
+            if (
+                Number.isInteger(
+                    lowerBoundaryDate || Number.isInteger(higherBoundaryDate)
+                ) &&
+                filter.intervalType === "include"
+            ) {
+                let nextPageTimestamp =
+                    higherBoundaryDate !== Infinity ? higherBoundaryDate : null;
+                do {
+                    if (!this.isProcessRunning) return;
+                    let mediaPage = await this.api.listItemsByTakenDate(
+                        nextPageTimestamp,
+                        source,
+                        nextPageId
+                    );
+                    if (!mediaPage?.items?.length) {
+                        log("No media items on the page!", "error");
+                        return mediaItems;
+                    }
+                    nextPageId = mediaPage.nextPageId;
+                    nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
+                    mediaPage.items = mediaPage.items.filter(
+                        (item) =>
+                            item.dateTaken >= lowerBoundaryDate &&
+                            item.dateTaken <= higherBoundaryDate
+                    );
+                    if (mediaPage?.items?.length === 0) continue;
+                    log(`Found ${mediaPage?.items?.length} items`);
+                    mediaItems.push(...mediaPage.items);
+                } while (
+                    nextPageTimestamp &&
+                    nextPageTimestamp > lowerBoundaryDate
+                );
+            } else if (
+                Number.isInteger(
+                    lowerBoundaryDate || Number.isInteger(higherBoundaryDate)
+                ) &&
+                filter.intervalType === "exclude"
+            ) {
+                let nextPageTimestamp = null;
+                do {
+                    if (!this.isProcessRunning) return;
+                    let mediaPage = await this.api.listItemsByTakenDate(
+                        nextPageTimestamp,
+                        source,
+                        nextPageId
+                    );
+                    if (!mediaPage?.items?.length) {
+                        log("No media items on the page!", "error");
+                        return mediaItems;
+                    }
+
+                    nextPageId = mediaPage.nextPageId;
+                    mediaPage.items = mediaPage.items.filter(
+                        (item) =>
+                            item.dateTaken < lowerBoundaryDate ||
+                            item.dateTaken > higherBoundaryDate
+                    );
+
+                    if (
+                        nextPageTimestamp > lowerBoundaryDate &&
+                        nextPageTimestamp < higherBoundaryDate
+                    ) {
+                        nextPageTimestamp = lowerBoundaryDate;
+                    } else {
+                        nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
+                    }
+
+                    if (mediaPage?.items?.length === 0) continue;
+
+                    log(`Found ${mediaPage?.items?.length} items`);
+                    mediaItems.push(...mediaPage.items);
+                } while (nextPageTimestamp);
+            } else {
+                let nextPageTimestamp = null;
+                do {
+                    if (!this.isProcessRunning) return;
+                    let mediaPage = await this.api.listItemsByTakenDate(
+                        nextPageTimestamp,
+                        source,
+                        nextPageId
+                    );
+                    if (!mediaPage?.items?.length) {
+                        log("No media items on the page!", "error");
+                        return mediaItems;
+                    }
+                    nextPageId = mediaPage.nextPageId;
+                    nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
+                    log(`Found ${mediaPage?.items?.length} items`);
+                    mediaItems.push(...mediaPage.items);
+                } while (nextPageTimestamp);
+            }
+
             return mediaItems;
-          }
+        }
 
-          nextPageId = mediaPage.nextPageId;
-          mediaPage.items = mediaPage.items.filter(item => item.dateTaken < lowerBoundaryDate || item.dateTaken > higherBoundaryDate);
+        async getLibraryItemsByUploadDate(filter) {
+            let lowerBoundaryDate = new Date(
+                filter.lowerBoundaryDate
+            ).getTime();
+            let higherBoundaryDate = new Date(
+                filter.higherBoundaryDate
+            ).getTime();
 
-          if (nextPageTimestamp > lowerBoundaryDate && nextPageTimestamp < higherBoundaryDate) {
-            nextPageTimestamp = lowerBoundaryDate;
-          } else {
-            nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
-          }
+            lowerBoundaryDate = isNaN(lowerBoundaryDate)
+                ? -Infinity
+                : lowerBoundaryDate;
+            higherBoundaryDate = isNaN(higherBoundaryDate)
+                ? Infinity
+                : higherBoundaryDate;
 
-          if (mediaPage?.items?.length === 0) continue;
+            const mediaItems = [];
 
-          log(`Found ${mediaPage?.items?.length} items`);
-          mediaItems.push(...mediaPage.items);
-        } while (nextPageTimestamp);
-      } else {
-        let nextPageTimestamp = null;
-        do {
-          if (!this.isProcessRunning) return;
-          let mediaPage = await this.api.listItemsByTakenDate(nextPageTimestamp, source, nextPageId);
-          if (!mediaPage?.items?.length) {
-            log('No media items on the page!', 'error');
+            let nextPageId = null;
+
+            let skipTheRest = false;
+
+            do {
+                if (!this.isProcessRunning) return;
+                let mediaPage = await this.api.listItemsByUploadedDate(
+                    nextPageId
+                );
+                if (!mediaPage?.items?.length) {
+                    log("No media items on the page!", "error");
+                    return mediaItems;
+                }
+                const lastTimeStamp = mediaPage.items.at(-1).dateUploaded;
+                nextPageId = mediaPage.nextPageId;
+                if (filter.intervalType === "include") {
+                    mediaPage.items = mediaPage.items.filter(
+                        (item) =>
+                            item.dateUploaded >= lowerBoundaryDate &&
+                            item.dateUploaded <= higherBoundaryDate
+                    );
+                    skipTheRest = lastTimeStamp < lowerBoundaryDate;
+                } else if (filter.intervalType === "exclude") {
+                    mediaPage.items = mediaPage.items.filter(
+                        (item) =>
+                            item.dateUploaded < lowerBoundaryDate ||
+                            item.dateUploaded > higherBoundaryDate
+                    );
+                }
+
+                log(`Found ${mediaPage?.items?.length} items`);
+                mediaItems.push(...mediaPage.items);
+            } while (nextPageId && !skipTheRest);
+
             return mediaItems;
-          }
-          nextPageId = mediaPage.nextPageId;
-          nextPageTimestamp = mediaPage.lastItemTimestamp - 1;
-          log(`Found ${mediaPage?.items?.length} items`);
-          mediaItems.push(...mediaPage.items);
-        } while (nextPageTimestamp);
-      }
-
-      return mediaItems;
-    }
-
-    async getLibraryItemsByUploadDate(filter) {
-      let lowerBoundaryDate = new Date(filter.lowerBoundaryDate).getTime();
-      let higherBoundaryDate = new Date(filter.higherBoundaryDate).getTime();
-
-      lowerBoundaryDate = isNaN(lowerBoundaryDate) ? -Infinity : lowerBoundaryDate;
-      higherBoundaryDate = isNaN(higherBoundaryDate) ? Infinity : higherBoundaryDate;
-
-      const mediaItems = [];
-
-      let nextPageId = null;
-
-      let skipTheRest = false;
-
-      do {
-        if (!this.isProcessRunning) return;
-        let mediaPage = await this.api.listItemsByUploadedDate(nextPageId);
-        if (!mediaPage?.items?.length) {
-          log('No media items on the page!', 'error');
-          return mediaItems;
-        }
-        const lastTimeStamp = mediaPage.items.at(-1).dateUploaded;
-        nextPageId = mediaPage.nextPageId;
-        if (filter.intervalType === 'include') {
-          mediaPage.items = mediaPage.items.filter(item => item.dateUploaded >= lowerBoundaryDate && item.dateUploaded <= higherBoundaryDate);
-          skipTheRest = lastTimeStamp < lowerBoundaryDate;
-        } else if (filter.intervalType === 'exclude') {
-          mediaPage.items = mediaPage.items.filter(item => item.dateUploaded < lowerBoundaryDate || item.dateUploaded > higherBoundaryDate);
         }
 
-        log(`Found ${mediaPage?.items?.length} items`);
-        mediaItems.push(...mediaPage.items);
-      } while (nextPageId && !skipTheRest);
-
-      return mediaItems;
-    }
-
-    fileNameFilter(mediaItems, filter) {
-      log('Filtering by filename');
-      const regex = new RegExp(filter.fileNameRegex);
-      if (filter?.fileNameMatchType === 'include') mediaItems = mediaItems.filter(item => regex.test(item.fileName));
-      else if (filter?.fileNameMatchType === 'exclude') mediaItems = mediaItems.filter(item => !regex.test(item.fileName));
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    desctiptionFilter(mediaItems, filter) {
-      log('Filtering by description');
-      const regex = new RegExp(filter.descriptionRegex);
-      if (filter?.descriptionMatchType === 'include') mediaItems = mediaItems.filter(item => regex.test(item.descriptionFull));
-      else if (filter?.descriptionMatchType === 'exclude') mediaItems = mediaItems.filter(item => !regex.test(item.descriptionFull));
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    sizeFilter(mediaItems, filter) {
-      log('Filtering by size');
-      if (parseInt(filter?.higherBoundarySize) > 0) mediaItems = mediaItems.filter(item => item.size < filter.higherBoundarySize);
-      if (parseInt(filter?.lowerBoundarySize) > 0) mediaItems = mediaItems.filter(item => item.size > filter.lowerBoundarySize);
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    qualityFilter(mediaItems, filter) {
-      log('Filtering by quality');
-      if (filter.quality == 'original') mediaItems = mediaItems.filter(item => item.isOriginalQuality);
-      else if (filter.quality == 'storage-saver') mediaItems = mediaItems.filter(item => !item.isOriginalQuality);
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    spaceFilter(mediaItems, filter) {
-      log('Filtering by space');
-      if (filter.space === 'consuming') mediaItems = mediaItems.filter(item => item.takesUpSpace);
-      else if (filter.space === 'non-consuming') mediaItems = mediaItems.filter(item => !item.takesUpSpace);
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    filterByDate(mediaItems, filter) {
-      log('Filtering by date');
-      let lowerBoundaryDate = new Date(filter.lowerBoundaryDate).getTime();
-      let higherBoundaryDate = new Date(filter.higherBoundaryDate).getTime();
-
-      lowerBoundaryDate = isNaN(lowerBoundaryDate) ? -Infinity : lowerBoundaryDate;
-      higherBoundaryDate = isNaN(higherBoundaryDate) ? Infinity : higherBoundaryDate;
-
-      if (filter.intervalType === 'include') {
-        if (filter.dateType === 'taken') {
-          mediaItems = mediaItems.filter(item => item.dateTaken >= lowerBoundaryDate && item.dateTaken <= higherBoundaryDate);
+        fileNameFilter(mediaItems, filter) {
+            log("Filtering by filename");
+            const regex = new RegExp(filter.fileNameRegex);
+            if (filter?.fileNameMatchType === "include")
+                mediaItems = mediaItems.filter((item) =>
+                    regex.test(item.fileName)
+                );
+            else if (filter?.fileNameMatchType === "exclude")
+                mediaItems = mediaItems.filter(
+                    (item) => !regex.test(item.fileName)
+                );
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-        else if (filter.dateType === 'uploaded') {
-          mediaItems = mediaItems.filter(item => item.dateUploaded >= lowerBoundaryDate && item.dateUploaded <= higherBoundaryDate);
+
+        desctiptionFilter(mediaItems, filter) {
+            log("Filtering by description");
+            const regex = new RegExp(filter.descriptionRegex);
+            if (filter?.descriptionMatchType === "include")
+                mediaItems = mediaItems.filter((item) =>
+                    regex.test(item.descriptionFull)
+                );
+            else if (filter?.descriptionMatchType === "exclude")
+                mediaItems = mediaItems.filter(
+                    (item) => !regex.test(item.descriptionFull)
+                );
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      }
-      else if (filter.intervalType === 'exclude') {
-        if (filter.dateType === 'taken') {
-          mediaItems = mediaItems.filter(item => item.dateTaken < lowerBoundaryDate || item.dateTaken > higherBoundaryDate);
-        } else if (filter.dateType === 'uploaded') {
-          mediaItems = mediaItems.filter(item => item.dateUploaded < lowerBoundaryDate || item.dateUploaded > higherBoundaryDate);
+
+        sizeFilter(mediaItems, filter) {
+            log("Filtering by size");
+            if (parseInt(filter?.higherBoundarySize) > 0)
+                mediaItems = mediaItems.filter(
+                    (item) => item.size < filter.higherBoundarySize
+                );
+            if (parseInt(filter?.lowerBoundarySize) > 0)
+                mediaItems = mediaItems.filter(
+                    (item) => item.size > filter.lowerBoundarySize
+                );
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      }
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
 
-    filterByMediaType(mediaItems, filter) {
-      // if has duration - video, else image
-      log('Filtering by media type');
-      if (filter.type === 'video') mediaItems = mediaItems.filter(item => item.duration);
-      else if (filter.type === 'image') mediaItems = mediaItems.filter(item => !item.duration);
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    filterFavorite(mediaItems, filter) {
-      log('Filtering favorites');
-      if (filter.favorite === 'true') {
-        mediaItems = mediaItems.filter(item => item?.isFavorite !== false);
-      }
-      else if (filter.favorite === 'false' || filter.excludeFavorites) {
-        mediaItems = mediaItems.filter(item => item?.isFavorite !== true);
-      }
-
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    filterOwned(mediaItems, filter) {
-      log('Filtering owned');
-      if (filter.owned === 'true') {
-        mediaItems = mediaItems.filter(item => item?.isOwned !== false);
-      }
-      else if (filter.owned === 'false') {
-        mediaItems = mediaItems.filter(item => item?.isOwned !== true);
-      }
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    filterArchived(mediaItems, filter) {
-      log('Filtering archived');
-      if (filter.archived === 'true') {
-        mediaItems = mediaItems.filter(item => item?.isArchived !== false);
-      }
-      else if (filter.archived === 'false') {
-        mediaItems = mediaItems.filter(item => item?.isArchived !== true);
-      }
-
-      log(`Item count after filtering: ${mediaItems?.length}`);
-      return mediaItems;
-    }
-
-    preChecks(filter) {
-      if (filter.fileNameRegex) {
-        const isValid = isPatternValid(filter.fileNameRegex);
-        if (isValid !== true) throw new Error(isValid);
-      }
-      if (filter.descriptionRegex) {
-        const isValid = isPatternValid(filter.descriptionRegex);
-        if (isValid !== true) throw new Error(isValid);
-      }
-      if (parseInt(filter.lowerBoundarySize) >= parseInt(filter.higherBoundarySize)){
-        throw new Error('Invalid Size Filter');
-      }
-    }
-
-    async actionWithFilter(action, filter, source, target, apiSettings) {
-      try{
-        this.preChecks(filter);
-      }
-      catch (error){
-        log(error, 'error');
-        return;
-      }
-
-      this.isProcessRunning = true;
-
-      // dispatching event to upate the ui without importing it
-      document.dispatchEvent(new Event('change'));
-
-      this.apiUtils = new ApiUtils(this, apiSettings || apiSettingsDefault);
-
-      try {
-        const startTime = new Date();
-        log(`Start Time ${dateToHHMMSS(startTime)}`);
-        const mediaItems = await this.getAndFilterMedia(filter, source, apiSettings);
-        if (!mediaItems?.length) log('No items to process.');
-        else {
-          log(`Items to process: ${mediaItems?.length}`);
-          if (action.elementId === 'restoreTrash' || source === 'trash') await this.apiUtils.restoreFromTrash(mediaItems);
-          if (action.elementId === 'unLock' || source === 'lockedFolder') await this.apiUtils.removeFromLockedFolder(mediaItems);
-          if (action.elementId === 'lock') await this.apiUtils.moveToLockedFolder(mediaItems);
-          if (action.elementId === 'toExistingAlbum') await this.apiUtils.addToExistingAlbum(mediaItems, target);
-          if (action.elementId === 'toNewAlbum') await this.apiUtils.addToNewAlbum(mediaItems, target);
-          if (action.elementId === 'toTrash') await this.apiUtils.moveToTrash(mediaItems);
-          if (action.elementId === 'toArchive') await this.apiUtils.sendToArchive(mediaItems);
-          if (action.elementId === 'unArchive') await this.apiUtils.unArchive(mediaItems);
-          if (action.elementId === 'toFavorite') await this.apiUtils.setAsFavorite(mediaItems);
-          if (action.elementId === 'unFavorite') await this.apiUtils.unFavorite(mediaItems);
-          if (action.elementId === 'scrapeVideos') await this.apiUtils.sendToServer(mediaItems);
-          log(`Task completed in ${timeToHHMMSS(new Date() - startTime)}`, 'success');
+        qualityFilter(mediaItems, filter) {
+            log("Filtering by quality");
+            if (filter.quality == "original")
+                mediaItems = mediaItems.filter(
+                    (item) => item.isOriginalQuality
+                );
+            else if (filter.quality == "storage-saver")
+                mediaItems = mediaItems.filter(
+                    (item) => !item.isOriginalQuality
+                );
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      } catch (error) {
-        log(error, 'error');
-      }
-      this.isProcessRunning = false;
 
-    }
-  }
-
-  const core = new Core();
-  const apiUtils = new ApiUtils(core);
-
-  function updateUI() {
-
-    function toggleVisibility(element, toggle) {
-      const allDescendants = element.querySelectorAll('*');
-      if (toggle) {
-        element.style.display = 'block';
-        for (const node of allDescendants) node.disabled = false;
-      } else {
-        element.style.display = 'none';
-        for (const node of allDescendants) node.disabled = true;
-      }
-    }
-
-    async function filterPreviewUpdate() {
-      const previewElement = document.querySelector('.filter-preview span');
-      try {
-        const description = generateFilterDescription(getForm('.filters-form'));
-        previewElement.innerText = description;
-      }
-      catch {
-        previewElement.innerText = 'Failed to generate description';
-      }
-    }
-
-    function isActiveTab(tabName) {
-      return document.querySelector('input[name="source"]:checked').id === tabName;
-    }
-
-    function lockedFolderTabState(){
-      const lockedFolderTab = document.getElementById('lockedFolder');
-      if(!window.location.href.includes('lockedfolder')){
-        lockedFolderTab.disabled = true;
-        lockedFolderTab.parentNode.title = 'To process items in the locked folder, you must open GPTK while in it';
-      }
-    }
-
-    function updateActionButtonStates() {
-      document.getElementById('unArchive').disabled = archivedExcluded;
-      document.getElementById('toFavorite').disabled = favoritesOnly || isActiveTab('favorites');
-      document.getElementById('unFavorite').disabled = favoritesExcluded;
-      document.getElementById('toArchive').disabled = archivedOnly;
-      document.getElementById('restoreTrash').disabled = !isActiveTab('trash');
-      document.getElementById('toTrash').disabled = isActiveTab('trash');
-      document.getElementById('lock').disabled = isActiveTab('lockedFolder');
-      document.getElementById('unLock').disabled = !isActiveTab('lockedFolder');
-    }
-
-
-    function updateFilterVisibility() {
-      const filterElements = {
-        includeAlbums: document.querySelector('.include-albums'),
-        owned: document.querySelector('.owned'),
-        search: document.querySelector('.search'),
-        favorite: document.querySelector('.favorite'),
-        quality: document.querySelector('.quality'),
-        size: document.querySelector('.size'),
-        filename: document.querySelector('.filename'),
-        description: document.querySelector('.description'),
-        space: document.querySelector('.space'),
-        excludeAlbums: document.querySelector('.exclude-albums'),
-        archive: document.querySelector('.archive'),
-        excludeShared: document.querySelector('.exclude-shared'),
-        excludeFavorite: document.querySelector('.exclude-favorites')
-      };
-
-      // Default: hide all
-      Object.values(filterElements).forEach(el => toggleVisibility(el, false));
-
-      // Conditions for showing filters based on the active tab.
-      if (isActiveTab('albums')) {
-        toggleVisibility(filterElements.includeAlbums, true);
-      }
-      if (['library', 'search', 'favorites'].some(isActiveTab)) {
-        toggleVisibility(filterElements.owned, true);
-      }
-      if (isActiveTab('search')) {
-        toggleVisibility(filterElements.search, true);
-        toggleVisibility(filterElements.favorite, true);
-        toggleVisibility(filterElements.archive, true);
-      }
-      if (!isActiveTab('trash')) {
-        toggleVisibility(filterElements.quality, true);
-        toggleVisibility(filterElements.size, true);
-        toggleVisibility(filterElements.filename, true);
-        toggleVisibility(filterElements.description, true);
-        toggleVisibility(filterElements.space, true);
-        if (!isActiveTab('lockedFolder')) {
-          toggleVisibility(filterElements.excludeAlbums, true);
+        spaceFilter(mediaItems, filter) {
+            log("Filtering by space");
+            if (filter.space === "consuming")
+                mediaItems = mediaItems.filter((item) => item.takesUpSpace);
+            else if (filter.space === "non-consuming")
+                mediaItems = mediaItems.filter((item) => !item.takesUpSpace);
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-        if (!isActiveTab('sharedLinks')) {
-          toggleVisibility(filterElements.excludeShared, true);
+
+        filterByDate(mediaItems, filter) {
+            log("Filtering by date");
+            let lowerBoundaryDate = new Date(
+                filter.lowerBoundaryDate
+            ).getTime();
+            let higherBoundaryDate = new Date(
+                filter.higherBoundaryDate
+            ).getTime();
+
+            lowerBoundaryDate = isNaN(lowerBoundaryDate)
+                ? -Infinity
+                : lowerBoundaryDate;
+            higherBoundaryDate = isNaN(higherBoundaryDate)
+                ? Infinity
+                : higherBoundaryDate;
+
+            if (filter.intervalType === "include") {
+                if (filter.dateType === "taken") {
+                    mediaItems = mediaItems.filter(
+                        (item) =>
+                            item.dateTaken >= lowerBoundaryDate &&
+                            item.dateTaken <= higherBoundaryDate
+                    );
+                } else if (filter.dateType === "uploaded") {
+                    mediaItems = mediaItems.filter(
+                        (item) =>
+                            item.dateUploaded >= lowerBoundaryDate &&
+                            item.dateUploaded <= higherBoundaryDate
+                    );
+                }
+            } else if (filter.intervalType === "exclude") {
+                if (filter.dateType === "taken") {
+                    mediaItems = mediaItems.filter(
+                        (item) =>
+                            item.dateTaken < lowerBoundaryDate ||
+                            item.dateTaken > higherBoundaryDate
+                    );
+                } else if (filter.dateType === "uploaded") {
+                    mediaItems = mediaItems.filter(
+                        (item) =>
+                            item.dateUploaded < lowerBoundaryDate ||
+                            item.dateUploaded > higherBoundaryDate
+                    );
+                }
+            }
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      }
-      if (isActiveTab('library')) {
-        toggleVisibility(filterElements.excludeFavorite, true);
-      }
-    }
 
-    lockedFolderTabState();
-
-    const filter = getForm('.filters-form');
-
-    // console.log(filter);
-
-    const favoritesOnly = filter.favorite === 'true';
-    const favoritesExcluded = filter.excludeFavorites === 'true' || filter.favorite === 'false';
-    const archivedOnly = filter.archived === 'true';
-    const archivedExcluded = filter.archived === 'false';
-
-    if (core.isProcessRunning) {
-      disableActionBar(true);
-      document.getElementById('stopProcess').style.display = 'block';
-    } else {
-      document.getElementById('stopProcess').style.display = 'none';
-      disableActionBar(false);
-      updateActionButtonStates();
-    }
-
-    updateFilterVisibility();
-    filterPreviewUpdate();
-  }
-
-  // eslint-disable-next-line no-undef
-  const version = `v${"2.0.0"}`;
-  // eslint-disable-next-line no-undef
-  const homepage = "https://github.com/xob0t/Google-Photos-Toolkit#readme";
-
-  function htmlTemplatePrep(gptkMainTemplate){
-    return gptkMainTemplate
-      .replace('%version%', version)
-      .replace('%homepage%', homepage);
-  }
-
-  function insertUi() {
-    // for inserting html to work
-    if (window.trustedTypes && window.trustedTypes.createPolicy) {
-      window.trustedTypes.createPolicy('default', {
-        createHTML: (string) => string
-      });
-    }
-    // html
-    let buttonInsertLocation = '.J3TAe';
-    if(window.location.href.includes('lockedfolder')) buttonInsertLocation = '.c9yG5b';
-    document.querySelector(buttonInsertLocation).insertAdjacentHTML('afterbegin', buttonHtml);
-    document.body.insertAdjacentHTML('afterbegin', htmlTemplatePrep(gptkMainTemplate));
-    // css
-    const style = document.createElement('style');
-    style.textContent = css;
-    document.head.appendChild(style);
-
-    baseListenersSetUp();
-  }
-
-  function showMainMenu() {
-    const overlay = document.querySelector('.overlay');
-    document.getElementById('gptk').style.display = 'flex';
-    overlay.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-  }
-
-  function hideMainMenu() {
-    const overlay = document.querySelector('.overlay');
-    document.getElementById('gptk').style.display = 'none';
-    overlay.style.display = 'none';
-    document.body.style.overflow = 'visible';
-  }
-
-  function baseListenersSetUp(){
-    document.addEventListener('change', updateUI);
-
-    const gptkButton = document.getElementById('gptk-button');
-    gptkButton.addEventListener('click', showMainMenu);
-    const exitMenuButton = document.querySelector('#hide');
-    exitMenuButton.addEventListener('click', hideMainMenu);
-  }
-
-  function getFromStorage(key) {
-    if (typeof Storage !== 'undefined') {
-      const userStorage = JSON.parse(localStorage.getItem(windowGlobalData.account)) || {};
-      const storedData = userStorage[key];
-
-      if (storedData) {
-        console.log('Retrieved data from localStorage:', key);
-        return storedData;
-      } else {
-        console.log('No data found in localStorage for key:', key);
-        return null;
-      }
-    } else {
-      console.log('Sorry, your browser does not support localStorage.');
-      return null;
-    }
-  }
-
-  function addAlbums(albums) {
-    function addAlbumsAsOptions(albums, albumSelects, addEmpty = false) {
-      for (const albumSelect of albumSelects) {
-        if (!albums?.length) {
-          const option = document.createElement('option');
-          option.textContent = 'No Albums';
-          option.value = '';
-          albumSelect.appendChild(option);
-          continue;
+        filterByMediaType(mediaItems, filter) {
+            // if has duration - video, else image
+            log("Filtering by media type");
+            if (filter.type === "video")
+                mediaItems = mediaItems.filter((item) => item.duration);
+            else if (filter.type === "image")
+                mediaItems = mediaItems.filter((item) => !item.duration);
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-        for (const album of albums) {
-          if (parseInt(album.itemCount) === 0 && !addEmpty) continue;
-          const option = document.createElement('option');
-          option.value = album.productId;
-          option.title = `Name: ${album.name}\nItems: ${album.itemCount}`;
-          option.textContent = album.name;
-          if (album.isShared) option.classList.add('shared');
-          albumSelect.appendChild(option);
+
+        filterFavorite(mediaItems, filter) {
+            log("Filtering favorites");
+            if (filter.favorite === "true") {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isFavorite !== false
+                );
+            } else if (filter.favorite === "false" || filter.excludeFavorites) {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isFavorite !== true
+                );
+            }
+
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      }
-    }
-    function emptySelects(albumSelects) {
-      for (const albumSelect of albumSelects) {
-        while (albumSelect.options.length > 0) {
-          albumSelect.remove(0);
+
+        filterOwned(mediaItems, filter) {
+            log("Filtering owned");
+            if (filter.owned === "true") {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isOwned !== false
+                );
+            } else if (filter.owned === "false") {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isOwned !== true
+                );
+            }
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
         }
-      }
-      updateUI();
+
+        filterArchived(mediaItems, filter) {
+            log("Filtering archived");
+            if (filter.archived === "true") {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isArchived !== false
+                );
+            } else if (filter.archived === "false") {
+                mediaItems = mediaItems.filter(
+                    (item) => item?.isArchived !== true
+                );
+            }
+
+            log(`Item count after filtering: ${mediaItems?.length}`);
+            return mediaItems;
+        }
+
+        preChecks(filter) {
+            if (filter.fileNameRegex) {
+                const isValid = isPatternValid(filter.fileNameRegex);
+                if (isValid !== true) throw new Error(isValid);
+            }
+            if (filter.descriptionRegex) {
+                const isValid = isPatternValid(filter.descriptionRegex);
+                if (isValid !== true) throw new Error(isValid);
+            }
+            if (
+                parseInt(filter.lowerBoundarySize) >=
+                parseInt(filter.higherBoundarySize)
+            ) {
+                throw new Error("Invalid Size Filter");
+            }
+        }
+
+        async actionWithFilter(action, filter, source, target, apiSettings) {
+            try {
+                this.preChecks(filter);
+            } catch (error) {
+                log(error, "error");
+                return;
+            }
+
+            this.isProcessRunning = true;
+
+            // dispatching event to upate the ui without importing it
+            document.dispatchEvent(new Event("change"));
+
+            this.apiUtils = new ApiUtils(
+                this,
+                apiSettings || apiSettingsDefault
+            );
+           
+            try {
+                const startTime = new Date();
+                log(`Start Time ${dateToHHMMSS(startTime)}`);
+                const mediaItems = await this.getAndFilterMedia(
+                    filter,
+                    source,
+                    apiSettings
+                );
+                if (!mediaItems?.length) 
+                    log("No items to process.");
+                else {
+                    log(`Items to process: ${mediaItems?.length}`);
+                    if (
+                        action.elementId === "restoreTrash" ||
+                        source === "trash"
+                    )
+                        await this.apiUtils.restoreFromTrash(mediaItems);
+                    if (
+                        action.elementId === "unLock" ||
+                        source === "lockedFolder"
+                    )
+                        await this.apiUtils.removeFromLockedFolder(mediaItems);
+                    if (action.elementId === "lock")
+                        await this.apiUtils.moveToLockedFolder(mediaItems);
+                    if (action.elementId === "toExistingAlbum")
+                        await this.apiUtils.addToExistingAlbum(
+                            mediaItems,
+                            target
+                        );
+                    if (action.elementId === "toNewAlbum")
+                        await this.apiUtils.addToNewAlbum(mediaItems, target);
+                    if (action.elementId === "toTrash")
+                        await this.apiUtils.moveToTrash(mediaItems);
+                    if (action.elementId === "toArchive")
+                        await this.apiUtils.sendToArchive(mediaItems);
+                    if (action.elementId === "unArchive")
+                        await this.apiUtils.unArchive(mediaItems);
+                    if (action.elementId === "toFavorite")
+                        await this.apiUtils.setAsFavorite(mediaItems);
+                    if (action.elementId === "unFavorite")
+                        await this.apiUtils.unFavorite(mediaItems);
+                    if (action.elementId === "scrapeVideos")
+                        await this.apiUtils.sendToServer(mediaItems);
+                    log(
+                        `Task completed in ${timeToHHMMSS(
+                            new Date() - startTime
+                        )}`,
+                        "success"
+                    );
+                }
+            } catch (error) {
+                log(error, "error");
+            }
+            this.isProcessRunning = false;
+        }
     }
-    const albumSelectsMultiple = document.querySelectorAll('.albums-select[multiple]');
-    const albumSelectsSingle = document.querySelectorAll('.dropdown.albums-select');
-    const albumSelects = [...albumSelectsMultiple, ...albumSelectsSingle];
 
-    emptySelects(albumSelects);
+    const core = new Core();
+    const apiUtils = new ApiUtils(core);
 
-    for (const select of albumSelectsSingle) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = 'Select Album';
-      select.appendChild(option);
+    function updateUI() {
+        function toggleVisibility(element, toggle) {
+            const allDescendants = element.querySelectorAll("*");
+            if (toggle) {
+                element.style.display = "block";
+                for (const node of allDescendants) node.disabled = false;
+            } else {
+                element.style.display = "none";
+                for (const node of allDescendants) node.disabled = true;
+            }
+        }
+
+        async function filterPreviewUpdate() {
+            const previewElement = document.querySelector(
+                ".filter-preview span"
+            );
+            try {
+                const description = generateFilterDescription(
+                    getForm(".filters-form")
+                );
+                previewElement.innerText = description;
+            } catch {
+                previewElement.innerText = "Failed to generate description";
+            }
+        }
+
+        function isActiveTab(tabName) {
+            return (
+                document.querySelector('input[name="source"]:checked').id ===
+                tabName
+            );
+        }
+
+        function lockedFolderTabState() {
+            const lockedFolderTab = document.getElementById("lockedFolder");
+            if (!window.location.href.includes("lockedfolder")) {
+                lockedFolderTab.disabled = true;
+                lockedFolderTab.parentNode.title =
+                    "To process items in the locked folder, you must open GPTK while in it";
+            }
+        }
+
+        function updateActionButtonStates() {
+            document.getElementById("unArchive").disabled = archivedExcluded;
+            document.getElementById("toFavorite").disabled =
+                favoritesOnly || isActiveTab("favorites");
+            document.getElementById("unFavorite").disabled = favoritesExcluded;
+            document.getElementById("toArchive").disabled = archivedOnly;
+            document.getElementById("restoreTrash").disabled =
+                !isActiveTab("trash");
+            document.getElementById("toTrash").disabled = isActiveTab("trash");
+            document.getElementById("lock").disabled =
+                isActiveTab("lockedFolder");
+            document.getElementById("unLock").disabled =
+                !isActiveTab("lockedFolder");
+        }
+
+        function updateFilterVisibility() {
+            const filterElements = {
+                includeAlbums: document.querySelector(".include-albums"),
+                owned: document.querySelector(".owned"),
+                search: document.querySelector(".search"),
+                favorite: document.querySelector(".favorite"),
+                quality: document.querySelector(".quality"),
+                size: document.querySelector(".size"),
+                filename: document.querySelector(".filename"),
+                description: document.querySelector(".description"),
+                space: document.querySelector(".space"),
+                excludeAlbums: document.querySelector(".exclude-albums"),
+                archive: document.querySelector(".archive"),
+                excludeShared: document.querySelector(".exclude-shared"),
+                excludeFavorite: document.querySelector(".exclude-favorites"),
+            };
+
+            // Default: hide all
+            Object.values(filterElements).forEach((el) =>
+                toggleVisibility(el, false)
+            );
+
+            // Conditions for showing filters based on the active tab.
+            if (isActiveTab("albums")) {
+                toggleVisibility(filterElements.includeAlbums, true);
+            }
+            if (["library", "search", "favorites"].some(isActiveTab)) {
+                toggleVisibility(filterElements.owned, true);
+            }
+            if (isActiveTab("search")) {
+                toggleVisibility(filterElements.search, true);
+                toggleVisibility(filterElements.favorite, true);
+                toggleVisibility(filterElements.archive, true);
+            }
+            if (!isActiveTab("trash")) {
+                toggleVisibility(filterElements.quality, true);
+                toggleVisibility(filterElements.size, true);
+                toggleVisibility(filterElements.filename, true);
+                toggleVisibility(filterElements.description, true);
+                toggleVisibility(filterElements.space, true);
+                if (!isActiveTab("lockedFolder")) {
+                    toggleVisibility(filterElements.excludeAlbums, true);
+                }
+                if (!isActiveTab("sharedLinks")) {
+                    toggleVisibility(filterElements.excludeShared, true);
+                }
+            }
+            if (isActiveTab("library")) {
+                toggleVisibility(filterElements.excludeFavorite, true);
+            }
+        }
+
+        lockedFolderTabState();
+
+        const filter = getForm(".filters-form");
+
+        // console.log(filter);
+
+        const favoritesOnly = filter.favorite === "true";
+        const favoritesExcluded =
+            filter.excludeFavorites === "true" || filter.favorite === "false";
+        const archivedOnly = filter.archived === "true";
+        const archivedExcluded = filter.archived === "false";
+
+        if (core.isProcessRunning) {
+            disableActionBar(true);
+            document.getElementById("stopProcess").style.display = "block";
+        } else {
+            document.getElementById("stopProcess").style.display = "none";
+            disableActionBar(false);
+            updateActionButtonStates();
+        }
+
+        updateFilterVisibility();
+        filterPreviewUpdate();
     }
 
-    addAlbumsAsOptions(albums, albumSelectsSingle, true);
-    addAlbumsAsOptions(albums, albumSelectsMultiple, false);
-  }
+    // eslint-disable-next-line no-undef
+    const version = `v${"2.0.0"}`;
+    // eslint-disable-next-line no-undef
+    const homepage = "https://github.com/xob0t/Google-Photos-Toolkit#readme";
 
-  const actions = [
-    {
-      elementId: 'toExistingAlbum',
-      targetId: 'existingAlbum'
-    },
-    {
-      elementId: 'toNewAlbum',
-      targetId: 'newAlbumName'
-    },
-    { elementId: 'toTrash' },
-    { elementId: 'restoreTrash' },
-    { elementId: 'toArchive' },
-    { elementId: 'unArchive' },
-    { elementId: 'toFavorite' },
-    { elementId: 'unFavorite' },
-    { elementId: 'lock' },
-    { elementId: 'unLock' },
-    { elementId: 'scrapeVideos' }
-  ];
-
-  function userConfirmation(action, filter, source) {
-    function generateWarning(action, filter) {
-      const filterDescription = generateFilterDescription(filter);
-      const sourceHuman = document.querySelector('input[name="source"]:checked+label').textContent.trim();
-      const actionElement = document.getElementById(action.elementId);
-      const warning = [];
-      warning.push(`Account: ${windowGlobalData.account}`);
-      warning.push(`\nSource: ${sourceHuman}`);
-      warning.push(`\n${filterDescription}`);
-      warning.push(`\nAction: ${actionElement.title}`);
-      return warning.join(' ');
-    }
-    const warning = generateWarning(action, filter);
-    const confirmation = window.confirm(`${warning}\nProceed?`);
-    if (!confirmation) return false;
-    return true;
-  }
-
-  async function runAction(actionId) {
-    const action = actions.find(action => action.elementId === actionId);
-    // user input value if action has a target
-    const target = document.getElementById(action?.targetId)?.value;
-    // id of currently selected source element
-    const source = document.querySelector('input[name="source"]:checked').id;
-
-    // check filter validity
-    const filtersForm = document.querySelector('.filters-form');
-    if (!filtersForm.checkValidity()){
-      filtersForm.reportValidity();
-      return;
+    function htmlTemplatePrep(gptkMainTemplate) {
+        return gptkMainTemplate
+            .replace("%version%", version)
+            .replace("%homepage%", homepage);
     }
 
-    if (actionId == 'scrapeVideos') {
-      let f = document.querySelector('.filters-form');
-      f.reset();
-      f.elements["type"].value = "video";
-      // this dummy filter will trigger additional RPC calls to obtain file size
-      f.elements["lowerBoundarySize"].value = 69;
-      updateUI();      
+    function insertUi() {
+        // for inserting html to work
+        if (window.trustedTypes && window.trustedTypes.createPolicy) {
+            window.trustedTypes.createPolicy("default", {
+                createHTML: (string) => string,
+            });
+        }
+        // html
+        let buttonInsertLocation = ".J3TAe";
+        if (window.location.href.includes("lockedfolder"))
+            buttonInsertLocation = ".c9yG5b";
+        document
+            .querySelector(buttonInsertLocation)
+            .insertAdjacentHTML("afterbegin", buttonHtml);
+        document.body.insertAdjacentHTML(
+            "afterbegin",
+            htmlTemplatePrep(gptkMainTemplate)
+        );
+        // css
+        const style = document.createElement("style");
+        style.textContent = css;
+        document.head.appendChild(style);
+
+        baseListenersSetUp();
     }
 
-
-    // Parsed filter object
-    const filter = getForm('.filters-form');
-
-    // Parsed settings object
-    const apiSettings = getForm('.settings-form');
-    if (!userConfirmation(action, filter)) return;
-
-    if (actionId === 'scrapeVideos') {
-      log('Confirming web server is running');
-      if (await apiUtils.confirmWebServerRunning()) {
-        log('Web server is running');
-      } else {
-        log('Web server is not running', 'error');
-        return;
-      }
+    function showMainMenu() {
+        const overlay = document.querySelector(".overlay");
+        document.getElementById("gptk").style.display = "flex";
+        overlay.style.display = "block";
+        document.body.style.overflow = "hidden";
     }
 
-    // Disable action bar while process is running
-    disableActionBar(true);
-    // add class to indicate which action is running
-    document.getElementById(actionId).classList.add('running');
-    // Run it
-    await core.actionWithFilter(action, filter, source, target, apiSettings);
-    // remove 'running' class
-    document.getElementById(actionId).classList.remove('running');
-    // Update the ui
-    updateUI();
-    // force show main action bar
-    showActionButtons();
-  }
+    function hideMainMenu() {
+        const overlay = document.querySelector(".overlay");
+        document.getElementById("gptk").style.display = "none";
+        overlay.style.display = "none";
+        document.body.style.overflow = "visible";
+    }
 
-  function showExistingAlbumContainer() {
-    document.querySelector('.action-buttons').style.display = 'none';
-    document.querySelector('.to-existing-container').style.display = 'flex';
-  }
+    function baseListenersSetUp() {
+        document.addEventListener("change", updateUI);
 
-  function showNewAlbumContainer() {
-    document.querySelector('.action-buttons').style.display = 'none';
-    document.querySelector('.to-new-container').style.display = 'flex';
-  }
+        const gptkButton = document.getElementById("gptk-button");
+        gptkButton.addEventListener("click", showMainMenu);
+        const exitMenuButton = document.querySelector("#hide");
+        exitMenuButton.addEventListener("click", hideMainMenu);
+    }
 
-  function showActionButtons() {
-    document.querySelector('.action-buttons').style.display = 'flex';
-    document.querySelector('.to-existing-container').style.display = 'none';
-    document.querySelector('.to-new-container').style.display = 'none';
-  }
+    function getFromStorage(key) {
+        if (typeof Storage !== "undefined") {
+            const userStorage =
+                JSON.parse(localStorage.getItem(windowGlobalData.account)) ||
+                {};
+            const storedData = userStorage[key];
 
-  function actionsListenersSetUp() {
-    for (const action of actions) {
-      const actionElement = document.getElementById(action.elementId);
-      if (actionElement.type === 'button') {
-        actionElement.addEventListener('click', async function (event) {
-          event.preventDefault();
-          await runAction(actionElement.id);
+            if (storedData) {
+                console.log("Retrieved data from localStorage:", key);
+                return storedData;
+            } else {
+                console.log("No data found in localStorage for key:", key);
+                return null;
+            }
+        } else {
+            console.log("Sorry, your browser does not support localStorage.");
+            return null;
+        }
+    }
+
+    function addAlbums(albums) {
+        function addAlbumsAsOptions(albums, albumSelects, addEmpty = false) {
+            for (const albumSelect of albumSelects) {
+                if (!albums?.length) {
+                    const option = document.createElement("option");
+                    option.textContent = "No Albums";
+                    option.value = "";
+                    albumSelect.appendChild(option);
+                    continue;
+                }
+                for (const album of albums) {
+                    if (parseInt(album.itemCount) === 0 && !addEmpty) continue;
+                    const option = document.createElement("option");
+                    option.value = album.productId;
+                    option.title = `Name: ${album.name}\nItems: ${album.itemCount}`;
+                    option.textContent = album.name;
+                    if (album.isShared) option.classList.add("shared");
+                    albumSelect.appendChild(option);
+                }
+            }
+        }
+        function emptySelects(albumSelects) {
+            for (const albumSelect of albumSelects) {
+                while (albumSelect.options.length > 0) {
+                    albumSelect.remove(0);
+                }
+            }
+            updateUI();
+        }
+        const albumSelectsMultiple = document.querySelectorAll(
+            ".albums-select[multiple]"
+        );
+        const albumSelectsSingle = document.querySelectorAll(
+            ".dropdown.albums-select"
+        );
+        const albumSelects = [...albumSelectsMultiple, ...albumSelectsSingle];
+
+        emptySelects(albumSelects);
+
+        for (const select of albumSelectsSingle) {
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "Select Album";
+            select.appendChild(option);
+        }
+
+        addAlbumsAsOptions(albums, albumSelectsSingle, true);
+        addAlbumsAsOptions(albums, albumSelectsMultiple, false);
+    }
+
+    const actions = [
+        {
+            elementId: "toExistingAlbum",
+            targetId: "existingAlbum",
+        },
+        {
+            elementId: "toNewAlbum",
+            targetId: "newAlbumName",
+        },
+        { elementId: "toTrash" },
+        { elementId: "restoreTrash" },
+        { elementId: "toArchive" },
+        { elementId: "unArchive" },
+        { elementId: "toFavorite" },
+        { elementId: "unFavorite" },
+        { elementId: "lock" },
+        { elementId: "unLock" },
+        { elementId: "scrapeVideos" }
+    ];
+
+    async function getUserConfirmationInModal(message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById("confirmationModal");
+            const modalMessage = document.getElementById("confirmationMessage");
+            const yesButton = document.getElementById("yesButton");
+            const noButton = document.getElementById("noButton");
+    
+            modalMessage.textContent = message;
+            modal.style.display = "block";
+    
+            yesButton.onclick = () => {
+                modal.style.display = "none";
+                resolve(true);
+            };
+    
+            noButton.onclick = () => {
+                modal.style.display = "none";
+                resolve(false);
+            };
         });
-      } else if (actionElement.tagName.toLowerCase() === 'form') {
-        actionElement.addEventListener('submit', async function (event) {
-          event.preventDefault();
-          await runAction(actionElement.id);
-        });
-      }
     }
 
-    const showExistingAlbumForm = document.querySelector('#showExistingAlbumForm');
-    showExistingAlbumForm.addEventListener('click', showExistingAlbumContainer);
-
-    const showNewAlbumForm = document.querySelector('#showNewAlbumForm');
-    showNewAlbumForm.addEventListener('click', showNewAlbumContainer);
-
-    const returnButtons = document.querySelectorAll('.return');
-    for (const button of returnButtons) {
-      button?.addEventListener('click', showActionButtons);
-    }
-  }
-
-  function saveToStorage(key, value) {
-    if (typeof Storage !== 'undefined') {
-      let userStorage = JSON.parse(localStorage.getItem(windowGlobalData.account)) || {};
-      userStorage[key] = value;
-      localStorage.setItem(windowGlobalData.account, JSON.stringify(userStorage));
-      console.log('Data saved to localStorage:', key);
-    } else {
-      console.log('Sorry, your browser does not support localStorage.');
-    }
-  }
-
-  function albumSelectsControlsSetUp() {
-    const selectAllButtons = document.querySelectorAll('[name="selectAll"]');
-    for (const selectAllButton of selectAllButtons) {
-      selectAllButton?.addEventListener('click', selectAllAlbums);
+    function userConfirmation(action, filter, source) {
+        function generateWarning(action, filter) {
+            const filterDescription = generateFilterDescription(filter);
+            const sourceHuman = document
+                .querySelector('input[name="source"]:checked+label')
+                .textContent.trim();
+            const actionElement = document.getElementById(action.elementId);
+            const warning = [];
+            warning.push(`Account: ${windowGlobalData.account}`);
+            warning.push(`\nSource: ${sourceHuman}`);
+            warning.push(`\n${filterDescription}`);
+            warning.push(`\nAction: ${actionElement.title}`);
+            return warning.join(" ");
+        }
+        const warning = generateWarning(action, filter);
+        const confirmation = window.confirm(`${warning}\nProceed?`);
+        if (!confirmation) return false;
+        return true;
     }
 
-    const selectSharedButtons = document.querySelectorAll('[name="selectShared"]');
-    for (const selectSharedButton of selectSharedButtons) {
-      selectSharedButton?.addEventListener('click', selectSharedAlbums);
+    async function runAction(actionId) {
+        const action = actions.find((action) => action.elementId === actionId);
+        // user input value if action has a target
+        const target = document.getElementById(action?.targetId)?.value;
+        // id of currently selected source element
+        const source = document.querySelector(
+            'input[name="source"]:checked'
+        ).id;
+
+        // check filter validity
+        const filtersForm = document.querySelector(".filters-form");
+        if (!filtersForm.checkValidity()) {
+            filtersForm.reportValidity();
+            return;
+        }
+
+        if (actionId == "scrapeVideos") {
+            // force a hardcoded filter that returns all videos
+            let f = document.querySelector(".filters-form");
+            f.reset();
+            f.elements["type"].value = "video";
+            // this dummy filter will trigger additional RPC calls to obtain file size
+            f.elements["lowerBoundarySize"].value = 69;
+            updateUI();
+
+            // abort mission if my web api is not running
+            log("Confirming web server is running");
+            if (await apiUtils.confirmWebServerRunning()) {
+                log("Web server is running");
+            } else {
+                log("Web server is not running", "error");
+                return;
+            }
+        }
+
+        // Parsed filter object
+        const filter = getForm(".filters-form");
+
+        // Parsed settings object
+        const apiSettings = getForm(".settings-form");
+        if (!userConfirmation(action, filter)) return;
+
+
+        // Disable action bar while process is running
+        disableActionBar(true);
+        // add class to indicate which action is running
+        document.getElementById(actionId).classList.add("running");
+        // Run it
+        await core.actionWithFilter(
+            action,
+            filter,
+            source,
+            target,
+            apiSettings
+        );
+        // remove 'running' class
+        document.getElementById(actionId).classList.remove("running");
+        // Update the ui
+        updateUI();
+        // force show main action bar
+        showActionButtons();
     }
 
-    const selectNotSharedButtons = document.querySelectorAll('[name="selectNonShared"]');
-    for (const selectNotSharedButton of selectNotSharedButtons) {
-      selectNotSharedButton?.addEventListener('click', selectNotSharedAlbums);
+    function showExistingAlbumContainer() {
+        document.querySelector(".action-buttons").style.display = "none";
+        document.querySelector(".to-existing-container").style.display = "flex";
     }
 
-    const resetAlbumSelectionButtons = document.querySelectorAll('[name="resetAlbumSelection"]');
-    for (const resetAlbumSelectionButton of resetAlbumSelectionButtons) {
-      resetAlbumSelectionButton?.addEventListener('click', resetAlbumSelection);
+    function showNewAlbumContainer() {
+        document.querySelector(".action-buttons").style.display = "none";
+        document.querySelector(".to-new-container").style.display = "flex";
     }
 
-    const refreshAlumbsButtons = document.querySelectorAll('.refresh-albums');
-    for (const refreshAlumbsButton of refreshAlumbsButtons) {
-      refreshAlumbsButton?.addEventListener('click', refreshAlbums);
-    }
-  }
-
-  function selectAllAlbums() {
-    let parent = this.parentNode.parentNode;
-    let closestSelect = parent.querySelector('select');
-    for (const option of closestSelect.options) {
-      if (option.value) option.selected = true;
-    }
-    updateUI();
-  }
-
-  function selectSharedAlbums() {
-    updateUI();
-    let parent = this.parentNode.parentNode;
-    let closestSelect = parent.querySelector('select');
-    for (const option of closestSelect.options) {
-      if (option.value) option.selected = option.classList.contains('shared');
-    }
-    updateUI();
-  }
-
-  function selectNotSharedAlbums() {
-    let parent = this.parentNode.parentNode;
-    let closestSelect = parent.querySelector('select');
-    for (const option of closestSelect.options) {
-      if (option.value) option.selected = !option.classList.contains('shared');
-
-    }
-    updateUI();
-  }
-
-  function resetAlbumSelection() {
-    let parent = this.parentNode.parentNode;
-    let closestSelect = parent.querySelector('select');
-    for (const option of closestSelect.options) option.selected = false;
-    updateUI();
-  }
-
-  async function refreshAlbums() {
-    // ugly
-    core.isProcessRunning = true;
-    let albums = null;
-    try{
-      albums = await apiUtils.getAllAlbums();
-      addAlbums(albums);
-      saveToStorage('albums', albums);
-      log('Albums Refreshed');
-    }
-    catch{
-      log('Error refreshing albums', 'error');
-    }
-    core.isProcessRunning = false;
-    updateUI();
-  }
-
-  function controlButttonsListeners(){
-    const clearLogButton = document.getElementById('clearLog');
-    clearLogButton.addEventListener('click', clearLog);
-    const stopProcessButton = document.getElementById('stopProcess');
-    stopProcessButton.addEventListener('click', stopProcess);
-  }
-
-  function clearLog(){
-    const logContainer = document.getElementById('logArea');
-    const logElements = Array.from(logContainer.childNodes);
-    for(const logElement of logElements){
-      logElement.remove();
-    }
-  }
-
-  function stopProcess(){
-    log('Stopping the process');
-    core.isProcessRunning = false;
-  }
-
-  function advancedSettingsListenersSetUp() {
-
-    function saveApiSettings(event) {
-      event.preventDefault();
-
-      const userInptSettings = getForm('.settings-form');
-
-      // Save values to localStorage
-      saveToStorage('apiSettings', userInptSettings);
-      log('Api settings saved');
+    function showActionButtons() {
+        document.querySelector(".action-buttons").style.display = "flex";
+        document.querySelector(".to-existing-container").style.display = "none";
+        document.querySelector(".to-new-container").style.display = "none";
     }
 
-    function restoreApiDefaults() {
+    function actionsListenersSetUp() {
+        for (const action of actions) {
+            const actionElement = document.getElementById(action.elementId);
+            if (actionElement.type === "button") {
+                actionElement.addEventListener("click", async function (event) {
+                    event.preventDefault();
+                    await runAction(actionElement.id);
+                });
+            } else if (actionElement.tagName.toLowerCase() === "form") {
+                actionElement.addEventListener(
+                    "submit",
+                    async function (event) {
+                        event.preventDefault();
+                        await runAction(actionElement.id);
+                    }
+                );
+            }
+        }
 
-      // Save default values to localStorage
-      saveToStorage('apiSettings', apiSettingsDefault);
+        const showExistingAlbumForm = document.querySelector(
+            "#showExistingAlbumForm"
+        );
+        showExistingAlbumForm.addEventListener(
+            "click",
+            showExistingAlbumContainer
+        );
 
-      // Update the form with default values
-      maxConcurrentApiReqInput.value = apiSettingsDefault.maxConcurrentApiReq;
-      operationSizeInput.value = apiSettingsDefault.operationSize;
-      lockedFolderOpSizeInput.value = apiSettingsDefault.lockedFolderOpSize;
-      infoSizeInput.value = apiSettingsDefault.infoSize;
-      log('Default api settings restored');
-    }
-    const maxConcurrentApiReqInput = document.querySelector('input[name="maxConcurrentApiReq"]');
-    const operationSizeInput = document.querySelector('input[name="operationSize"]');
-    const lockedFolderOpSizeInput = document.querySelector('input[name="lockedFolderOpSize"]');
-    const infoSizeInput = document.querySelector('input[name="infoSize"]');
-    const defaultButton = document.querySelector('button[name="default"]');
-    const settingsForm = document.querySelector('.settings-form');
+        const showNewAlbumForm = document.querySelector("#showNewAlbumForm");
+        showNewAlbumForm.addEventListener("click", showNewAlbumContainer);
 
-    const restoredSettings = getFromStorage('apiSettings');
-
-    maxConcurrentApiReqInput.value = restoredSettings?.maxConcurrentApiReq || apiSettingsDefault.maxConcurrentApiReq;
-    operationSizeInput.value = restoredSettings?.operationSize || apiSettingsDefault.operationSize;
-    lockedFolderOpSizeInput.value = restoredSettings?.lockedFolderOpSize || apiSettingsDefault.lockedFolderOpSize;
-    infoSizeInput.value = restoredSettings?.infoSize || apiSettingsDefault.infoSize;
-
-    // Add event listener for form submission
-    settingsForm.addEventListener('submit', saveApiSettings);
-    // Add event listener for "Default" button click
-    defaultButton.addEventListener('click', restoreApiDefaults);
-  }
-
-  async function filterListenersSetUp() {
-    function resetDateInput() {
-      let parent = this.parentNode;
-      let closestSelect = parent.querySelector('input');
-      closestSelect.value = '';
-      updateUI();
-    }
-    function toggleClicked() {
-      this.classList.add('clicked');
-      setTimeout(() => {
-        this.classList.remove('clicked');
-      }, 500);
+        const returnButtons = document.querySelectorAll(".return");
+        for (const button of returnButtons) {
+            button?.addEventListener("click", showActionButtons);
+        }
     }
 
-    function resetAllFilters() {
-      document.querySelector('.filters-form').reset();
-      updateUI();
+    function saveToStorage(key, value) {
+        if (typeof Storage !== "undefined") {
+            let userStorage =
+                JSON.parse(localStorage.getItem(windowGlobalData.account)) ||
+                {};
+            userStorage[key] = value;
+            localStorage.setItem(
+                windowGlobalData.account,
+                JSON.stringify(userStorage)
+            );
+            console.log("Data saved to localStorage:", key);
+        } else {
+            console.log("Sorry, your browser does not support localStorage.");
+        }
     }
 
-    const resetDateButtons = document.querySelectorAll('[name="dateReset"]');
-    for (const resetButton of resetDateButtons) {
-      resetButton?.addEventListener('click', resetDateInput);
+    function albumSelectsControlsSetUp() {
+        const selectAllButtons =
+            document.querySelectorAll('[name="selectAll"]');
+        for (const selectAllButton of selectAllButtons) {
+            selectAllButton?.addEventListener("click", selectAllAlbums);
+        }
+
+        const selectSharedButtons = document.querySelectorAll(
+            '[name="selectShared"]'
+        );
+        for (const selectSharedButton of selectSharedButtons) {
+            selectSharedButton?.addEventListener("click", selectSharedAlbums);
+        }
+
+        const selectNotSharedButtons = document.querySelectorAll(
+            '[name="selectNonShared"]'
+        );
+        for (const selectNotSharedButton of selectNotSharedButtons) {
+            selectNotSharedButton?.addEventListener(
+                "click",
+                selectNotSharedAlbums
+            );
+        }
+
+        const resetAlbumSelectionButtons = document.querySelectorAll(
+            '[name="resetAlbumSelection"]'
+        );
+        for (const resetAlbumSelectionButton of resetAlbumSelectionButtons) {
+            resetAlbumSelectionButton?.addEventListener(
+                "click",
+                resetAlbumSelection
+            );
+        }
+
+        const refreshAlumbsButtons =
+            document.querySelectorAll(".refresh-albums");
+        for (const refreshAlumbsButton of refreshAlumbsButtons) {
+            refreshAlumbsButton?.addEventListener("click", refreshAlbums);
+        }
     }
 
-    // reset all filters button
-
-    const filterResetButton = document.querySelector('#filterResetButton');
-    filterResetButton.addEventListener('click', resetAllFilters);
-
-    // date reset button animation
-    const dateResets = document.querySelectorAll('.date-reset');
-    for (const reset of dateResets) {
-      reset?.addEventListener('click', toggleClicked);
+    function selectAllAlbums() {
+        let parent = this.parentNode.parentNode;
+        let closestSelect = parent.querySelector("select");
+        for (const option of closestSelect.options) {
+            if (option.value) option.selected = true;
+        }
+        updateUI();
     }
-  }
 
-  async function initUI() {
-    insertUi();
-    actionsListenersSetUp();
-    filterListenersSetUp();
-    controlButttonsListeners();
-    albumSelectsControlsSetUp();
-    advancedSettingsListenersSetUp();
-    updateUI();
-
-    const cachedAlbums = getFromStorage('albums');
-    if (cachedAlbums) {
-      log('Cached Albums Restored');
-      addAlbums(cachedAlbums);
+    function selectSharedAlbums() {
+        updateUI();
+        let parent = this.parentNode.parentNode;
+        let closestSelect = parent.querySelector("select");
+        for (const option of closestSelect.options) {
+            if (option.value)
+                option.selected = option.classList.contains("shared");
+        }
+        updateUI();
     }
-  }
 
-  initUI();
+    function selectNotSharedAlbums() {
+        let parent = this.parentNode.parentNode;
+        let closestSelect = parent.querySelector("select");
+        for (const option of closestSelect.options) {
+            if (option.value)
+                option.selected = !option.classList.contains("shared");
+        }
+        updateUI();
+    }
 
+    function resetAlbumSelection() {
+        let parent = this.parentNode.parentNode;
+        let closestSelect = parent.querySelector("select");
+        for (const option of closestSelect.options) option.selected = false;
+        updateUI();
+    }
+
+    async function refreshAlbums() {
+        // ugly
+        core.isProcessRunning = true;
+        let albums = null;
+        try {
+            albums = await apiUtils.getAllAlbums();
+            addAlbums(albums);
+            saveToStorage("albums", albums);
+            log("Albums Refreshed");
+        } catch {
+            log("Error refreshing albums", "error");
+        }
+        core.isProcessRunning = false;
+        updateUI();
+    }
+
+    function controlButttonsListeners() {
+        const clearLogButton = document.getElementById("clearLog");
+        clearLogButton.addEventListener("click", clearLog);
+        const stopProcessButton = document.getElementById("stopProcess");
+        stopProcessButton.addEventListener("click", stopProcess);
+    }
+
+    function clearLog() {
+        const logContainer = document.getElementById("logArea");
+        const logElements = Array.from(logContainer.childNodes);
+        for (const logElement of logElements) {
+            logElement.remove();
+        }
+    }
+
+    function stopProcess() {
+        log("Stopping the process");
+        core.isProcessRunning = false;
+    }
+
+    function advancedSettingsListenersSetUp() {
+        function saveApiSettings(event) {
+            event.preventDefault();
+
+            const userInptSettings = getForm(".settings-form");
+
+            // Save values to localStorage
+            saveToStorage("apiSettings", userInptSettings);
+            log("Api settings saved");
+        }
+
+        function restoreApiDefaults() {
+            // Save default values to localStorage
+            saveToStorage("apiSettings", apiSettingsDefault);
+
+            // Update the form with default values
+            maxConcurrentApiReqInput.value =
+                apiSettingsDefault.maxConcurrentApiReq;
+            operationSizeInput.value = apiSettingsDefault.operationSize;
+            lockedFolderOpSizeInput.value =
+                apiSettingsDefault.lockedFolderOpSize;
+            infoSizeInput.value = apiSettingsDefault.infoSize;
+            log("Default api settings restored");
+        }
+        const maxConcurrentApiReqInput = document.querySelector(
+            'input[name="maxConcurrentApiReq"]'
+        );
+        const operationSizeInput = document.querySelector(
+            'input[name="operationSize"]'
+        );
+        const lockedFolderOpSizeInput = document.querySelector(
+            'input[name="lockedFolderOpSize"]'
+        );
+        const infoSizeInput = document.querySelector('input[name="infoSize"]');
+        const defaultButton = document.querySelector('button[name="default"]');
+        const settingsForm = document.querySelector(".settings-form");
+
+        const restoredSettings = getFromStorage("apiSettings");
+
+        maxConcurrentApiReqInput.value =
+            restoredSettings?.maxConcurrentApiReq ||
+            apiSettingsDefault.maxConcurrentApiReq;
+        operationSizeInput.value =
+            restoredSettings?.operationSize || apiSettingsDefault.operationSize;
+        lockedFolderOpSizeInput.value =
+            restoredSettings?.lockedFolderOpSize ||
+            apiSettingsDefault.lockedFolderOpSize;
+        infoSizeInput.value =
+            restoredSettings?.infoSize || apiSettingsDefault.infoSize;
+
+        // Add event listener for form submission
+        settingsForm.addEventListener("submit", saveApiSettings);
+        // Add event listener for "Default" button click
+        defaultButton.addEventListener("click", restoreApiDefaults);
+    }
+
+    async function filterListenersSetUp() {
+        function resetDateInput() {
+            let parent = this.parentNode;
+            let closestSelect = parent.querySelector("input");
+            closestSelect.value = "";
+            updateUI();
+        }
+        function toggleClicked() {
+            this.classList.add("clicked");
+            setTimeout(() => {
+                this.classList.remove("clicked");
+            }, 500);
+        }
+
+        function resetAllFilters() {
+            document.querySelector(".filters-form").reset();
+            updateUI();
+        }
+
+        const resetDateButtons =
+            document.querySelectorAll('[name="dateReset"]');
+        for (const resetButton of resetDateButtons) {
+            resetButton?.addEventListener("click", resetDateInput);
+        }
+
+        // reset all filters button
+
+        const filterResetButton = document.querySelector("#filterResetButton");
+        filterResetButton.addEventListener("click", resetAllFilters);
+
+        // date reset button animation
+        const dateResets = document.querySelectorAll(".date-reset");
+        for (const reset of dateResets) {
+            reset?.addEventListener("click", toggleClicked);
+        }
+    }
+
+    async function initUI() {
+        insertUi();
+        actionsListenersSetUp();
+        filterListenersSetUp();
+        controlButttonsListeners();
+        albumSelectsControlsSetUp();
+        advancedSettingsListenersSetUp();
+        updateUI();
+
+        const cachedAlbums = getFromStorage("albums");
+        if (cachedAlbums) {
+            log("Cached Albums Restored");
+            addAlbums(cachedAlbums);
+        }
+    }
+
+    initUI();
 })();

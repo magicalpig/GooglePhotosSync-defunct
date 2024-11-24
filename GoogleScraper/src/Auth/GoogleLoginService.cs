@@ -21,7 +21,6 @@ public class GoogleLoginService(ILogger<GoogleLoginService> logger, Settings set
 
     public async Task<AuthenticationHeaderValue?> GetAuthHeader()
     {
-        _logger.LogDebug("Checking if already logged in");
         if (_isLoggedIn)
         {
             _logger.LogDebug("Already logged in, skipping login");

@@ -10,7 +10,9 @@ The purpose of this solution is to identify
 
 ## Usage Notes
 Much of the metadata about Google Videos can be scraped from its REST API. The `GoogleScraper` project does that. It identifies videos by what we call the REST ID. These are about 98 (or maybe exactly?) characters long.  
-This technique does not give us the size or duration of the videos. To get this, we need to use our web browsers to interact with the Google Photos website. We run Tampermonkey to make the gptk.js script available within the browser. I have modified this script so it has a "Scrape Videos" action. More details on this later when I discuss the 2 different video ID schemes Google Photos uses.
+This technique does not give us the size, duration, or URL of the videos. To get this, we need to use our web browsers to interact with the Google Photos website. We run Tampermonkey to make the gptk.js script available within the browser. I have modified this script so it has a "Scrape Videos" action. More details on this later when I discuss the 2 different video ID schemes Google Photos uses. 
+
+You should run GoogleScraper before using the GPTK userscript. The former inserts records into the database while the latter only updates existing records, providing the metadata that GoogleScraper cannot. 
 
 ## Solution Layout
 There are 4 projects here:  
@@ -19,7 +21,7 @@ There are 4 projects here:
 | **VideoToolsCore** | Base functionality used by multiple projects including database access, models, helpers for building the app (loading configuration files, logging), and helpers for scraping local filesystem metadata using FFMpeg |
 | **LocalScaper** | Scans local filesystem for videos; collects metadata using ffprobe and shell32; stores in database; deletes records for videos not found in scanned directory |
 | **GoogleScraper** | Connects to Google Photos API to get information on videos and albums; stores in database; offers to delete record from db if no longer present in GP |
-| **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. Used for obtaining Google Photos metadata not available through Google's REST API |
+| **WebHelper** | Runs a webserver to listen for JSON payloads sent from browser. Used for obtaining Google Photos metadata not available through Google's REST API. This does not add any records but instead fills in the blanks (duration, size, URL) on records added by GoogleScraper. |
 
 ## Database
 ### Table: GoogleVideos
@@ -31,7 +33,7 @@ Primary key is full path to video AND owner (user running the LocalScraper app, 
 ### Table: GoogleAlbums
 Names and IDs of albums on Google Photos.
 
-### AlbumMemberships
+### Table: AlbumMemberships
 Connects GoogleVideos to GoogleAlbums.
 
 ## Prerequisites
@@ -99,11 +101,17 @@ Remember that if you are in development and use appsettings.Development.json, ap
 
 
 ## About the Google Photos API and the need for web browser
-The GP REST API doesn't expose video filesize or duration. To get these metadata, you manually browse to the GP website and you use something like Tampermonkey to run the user script included in this solution as gptk.js. This user script is a modified version of something I found online.
+The GP REST API doesn't expose video filesize, duration, or URL. To get these metadata, you manually browse to the GP website and you use something like Tampermonkey to run the user script included in this solution as gptk.js. This user script is a modified version of something created by xob0t at https://github.com/xob0t/Google-Photos-Toolkit.
 
 This GPTK script makes use of the poorly documented "batchExecute" RPC API of Google Photos. There are certain operations you could ask it to do that will cause it to query the RPC API for information about all videos. I made modifications to the script so it will collect metadata about all videos and post the result to the web server app included in this solution. This is triggered by the "Scrape Videos" button I added.
 
-Where things get tricky is in the fact that Google's REST API uses a different ID format than what is used by their RPC API. The browser will send videos to our web server app identifying each video by its ID for the RPC API. When the web server app looks for a database record to update, those records will only have an ID used by the REST API. The web server app will respond to the web browser telling it all the REST API IDs that aren't yet paired up with an RPC API ID. The web browser will then make HEAD requests for videos where the REST ID is in the URL. Google Photos will respond with a redirect to a URL that includes the RPC ID instead. Now we have our mapping between REST ID and RPC ID. The videos are once again sent to our web server app this time including both the REST API ID and the RPC API ID. The web server app will be able to locate a record in the database using the REST API ID and set the newly scraped metadata as well as the RPC API ID.
+Where things get tricky is in the fact that this RPC API uses a different ID than what is used by the REST API. GPTK.js will call this ID "productId". The browser will send videos to our web server app identifying each video by its `productID` which will have been moved into a property called `rpcId`. The web server app will try to locate a record by matching the `rpcId` parameter with the database's `RpcId` column. 
+
+If it does not find a match, it will check if there are any records for videos that have a REST API ID (obtained by `GoogleScraper`) but no `RpcId`. If there are any such records, the web server app will return a response contained those REST API IDs. The gptk.js code will then iterate over those REST API IDs, making HEAD requests for each one and reading the response will will contain a redirect to a URL based off the RPC API ID. This is how we get the mapping between REST API ID and RPC API ID. 
+
+With any newly discovered pairing between a REST API ID and an RPC API ID, the GPTK script resend the videos to the web server app, this time including both ID types. The web server app will be able to locate a record in the database using the REST API ID and set the newly scraped metadata as well as the RPC API ID.
+
+ 
 
 # Weirdness
 The GooglePhotosService from the CasCap.Apis.GooglePhotos library has to share the exact same HttpClient instance as is used by my GoogleApiCurrentUserService service. This is because GoogleApiCurrentUserService needs to perform the authorization to Google and when the authorization succeeds it needs to store an Authorization header as part of the HttpClient's default headers.  

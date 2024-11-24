@@ -15,12 +15,13 @@
         "LogLevel": {
             "Default": "Information",
             "Microsoft": "Warning",
+            "Microsoft.AspNetCore": "Information",
             "System.Net.Http.HttpClient": "Warning"
         },
         "Console": {
             "FormatterName": "simple",
             "FormatterOptions": {
-                "IncludeScopes": true,
+                "IncludeScopes": false,
                 "SingleLine": true,
                 "EnableColors": true
             }

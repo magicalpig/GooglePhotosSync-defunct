@@ -17,7 +17,7 @@ class Program
 {
     public static async Task Main()
     {
-        var host = MyHostBuilder.CreateHost<Settings>(services =>
+        var host = MyHostBuilder.CreateConsoleHost<Settings>(services =>
         {
             services.AddTransient<AuthorizationHandler>();
             services.AddGooglePhotos();

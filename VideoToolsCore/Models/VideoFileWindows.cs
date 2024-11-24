@@ -1,5 +1,8 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace VideoToolsCore.Models;
 
+[Table("WindowsVideos")]
 public class VideoFileWindows : VideoFileBase
 {
     public string Path { get; set; } = String.Empty;

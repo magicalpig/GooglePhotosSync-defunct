@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
+using VideoToolsCore.Services;
 
 namespace VideoToolsCore.DataAccess;
 
@@ -17,7 +17,7 @@ public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoCo
 
     public VideoContext CreateDbContext(string[] args)
     {
-        var host = MyHostBuilder.CreateHost<Settings>(_ => { });
+        var host = HostBuilder.CreateConsoleHost<Settings>(_ => { });
         
         var settings = host.Services.GetRequiredService<IProvidesDbFilePath>();
         var logger = host.Services.GetRequiredService<ILogger<VideoContext>>();

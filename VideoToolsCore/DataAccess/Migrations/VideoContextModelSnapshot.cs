@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using VideoToolsCore.DataAccess;
 
 #nullable disable
 
@@ -14,29 +15,29 @@ namespace VideoToolsCore.DataAccess.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
 
-            modelBuilder.Entity("VideoDataAccess.Models.AlbumMembership", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.AlbumMembership", b =>
                 {
-                    b.Property<string>("VideoFileGoogleId")
+                    b.Property<string>("VideoId")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("GoogleAlbumId")
+                    b.Property<string>("AlbumId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Owner")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("VideoFileGoogleId", "GoogleAlbumId");
+                    b.HasKey("VideoId", "AlbumId");
 
-                    b.HasIndex("GoogleAlbumId", "Owner");
+                    b.HasIndex("AlbumId", "Owner");
 
-                    b.HasIndex("VideoFileGoogleId", "Owner");
+                    b.HasIndex("VideoId", "Owner");
 
                     b.ToTable("AlbumMemberships");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.GoogleAlbum", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.GoogleAlbum", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
@@ -55,7 +56,7 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("GoogleAlbums");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.VideoFileGoogle", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.VideoFileGoogle", b =>
                 {
                     b.Property<string>("GoogleId")
                         .HasColumnType("TEXT");
@@ -93,7 +94,7 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("GoogleVideos");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.VideoFileWindows", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.VideoFileWindows", b =>
                 {
                     b.Property<string>("Path")
                         .HasColumnType("TEXT");
@@ -136,27 +137,29 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("WindowsVideos");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.AlbumMembership", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.AlbumMembership", b =>
                 {
-                    b.HasOne("VideoDataAccess.Models.GoogleAlbum", "GoogleAlbum")
+                    b.HasOne("VideoToolsCore.Models.GoogleAlbum", "GoogleAlbum")
                         .WithMany("AlbumMemberships")
-                        .HasForeignKey("GoogleAlbumId", "Owner");
+                        .HasForeignKey("AlbumId", "Owner")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("VideoDataAccess.Models.VideoFileGoogle", "VideoFileGoogle")
+                    b.HasOne("VideoToolsCore.Models.VideoFileGoogle", "VideoFileGoogle")
                         .WithMany("AlbumMemberships")
-                        .HasForeignKey("VideoFileGoogleId", "Owner");
+                        .HasForeignKey("VideoId", "Owner")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("GoogleAlbum");
 
                     b.Navigation("VideoFileGoogle");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.GoogleAlbum", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.GoogleAlbum", b =>
                 {
                     b.Navigation("AlbumMemberships");
                 });
 
-            modelBuilder.Entity("VideoDataAccess.Models.VideoFileGoogle", b =>
+            modelBuilder.Entity("VideoToolsCore.Models.VideoFileGoogle", b =>
                 {
                     b.Navigation("AlbumMemberships");
                 });

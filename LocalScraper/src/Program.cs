@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using LocalScraper.Services;
 using Microsoft.Extensions.Logging;
-using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
 using VideoToolsCore.Services;
 using VideoToolsCore.DataAccess;
 
@@ -11,7 +10,7 @@ class Program
 {
     public static async Task Main()
     {
-        var host = MyHostBuilder.CreateHost<Settings>(services =>
+        var host = HostBuilder.CreateConsoleHost<Settings>(services =>
         {
             // We need the same http client to be used by GoogleScraper and GooglePhotosService
             // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use      

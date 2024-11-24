@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using VideoToolsCore.Models;
 
 namespace VideoToolsCore.DataAccess;
@@ -21,50 +22,53 @@ public class VideoContext : DbContext
     }
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {
-        options.UseSqlite(_connectionString);
+        options.UseSqlite(_connectionString)
+            //.LogTo(Console.WriteLine, LogLevel.Information)
+            ;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<VideoFileWindows>().ToTable("WindowsVideos");
-
         modelBuilder.Entity<VideoFileWindows>()
-          .HasKey(v => new { v.Path, v.Owner });
+            .HasKey(v => new { v.Path, v.Owner });
         modelBuilder.Entity<VideoFileGoogle>()
-          .HasKey(v => new { v.GoogleId, v.Owner });
+            .HasKey(v => new { v.GoogleId, v.Owner });
         modelBuilder.Entity<GoogleAlbum>()
-          .HasKey(a => new { a.Id, a.Owner });
+            .HasKey(a => new { a.Id, a.Owner });
+        modelBuilder.Entity<AlbumMembership>()
+            .HasKey(am => new { am.VideoId, am.AlbumId });
 
         if (_currentUserService is not null)
         {
             modelBuilder.Entity<VideoFileGoogle>()
-              .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+                .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
             modelBuilder.Entity<VideoFileWindows>()
-              .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+                .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
             modelBuilder.Entity<GoogleAlbum>()
-              .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
+                .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
             modelBuilder.Entity<AlbumMembership>()
-              .HasQueryFilter(am => am.Owner == _currentUserService.UserId);
+                .HasQueryFilter(am => am.Owner == _currentUserService.UserId);
         }
 
+        // Relationship between Google videos and albums
         modelBuilder.Entity<AlbumMembership>()
-          .HasKey(am => new { am.VideoFileGoogleId, am.GoogleAlbumId });
+            .HasOne(am => am.VideoFileGoogle)
+            .WithMany(vfg => vfg.AlbumMemberships)
+            .HasForeignKey(am => new { am.VideoId, am.Owner })
+            .OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<AlbumMembership>()
-          .HasOne(am => am.VideoFileGoogle)
-          .WithMany(vfg => vfg.AlbumMemberships)
-          .HasForeignKey(am => new { am.VideoFileGoogleId, am.Owner });
-        modelBuilder.Entity<AlbumMembership>()
-          .HasOne(am => am.GoogleAlbum)
-          .WithMany(ga => ga.AlbumMemberships)
-          .HasForeignKey(am => new { am.GoogleAlbumId, am.Owner });
+            .HasOne(am => am.GoogleAlbum)
+            .WithMany(ga => ga.AlbumMemberships)
+            .HasForeignKey(am => new { am.AlbumId, am.Owner })
+            .OnDelete(DeleteBehavior.Cascade);
 
-        // make Name propeties case-insensitive
+        // make Name properties case-insensitive
         modelBuilder.Entity<VideoFileGoogle>()
-          .Property(v => v.Name)
-          .UseCollation("NOCASE");
+            .Property(v => v.Name)
+            .UseCollation("NOCASE");
         modelBuilder.Entity<VideoFileWindows>()
-          .Property(v => v.Name)
-          .UseCollation("NOCASE");
+            .Property(v => v.Name)
+            .UseCollation("NOCASE");
     }
 
     private DbSet<T> GetVideos<T>() where T : VideoFileBase
@@ -72,7 +76,8 @@ public class VideoContext : DbContext
         return Set<T>();
     }
 
-    // not an override of base class RemoveRange because that takes IEnumerable<object>
+
+    // Ensure videos to be deleted belong to current user
     public void RemoveRange(IEnumerable<VideoFileBase> videos)
     {
         if (_currentUserService is not null)
@@ -80,20 +85,27 @@ public class VideoContext : DbContext
             videos = videos.Where(v => v.Owner == _currentUserService.UserId);
         }
 
-        // remove album associations
-        foreach (var video in videos.OfType<VideoFileGoogle>())
-        {
-            var albumMemberships = AlbumMemberships
-              .Where(am => am.VideoFileGoogleId == video.GoogleId)
-              .ToList();
-
-            RemoveRange(albumMemberships);
-        }
-
-
         base.RemoveRange(videos);
         SaveChanges();
     }
+
+    // override base class RemoveRange so it can never be called, circumventing the ownership check
+    public override void RemoveRange(IEnumerable<object> entities)
+    {
+        var videos = entities.OfType<VideoFileBase>().ToList();
+        var nonVideos = entities.Except(videos).ToList();
+
+        if (videos.Count > 0)
+        {
+            RemoveRange(videos);
+        }
+
+        if (nonVideos.Count > 0)
+        {
+            base.RemoveRange(nonVideos);
+        }
+    }
+
     public void RemoveAllVideos()
     {
         var videos = GetVideos<VideoFileBase>();

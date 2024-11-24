@@ -40,7 +40,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 _logger.LogDebug("Album {title} already in database", existing.Title);
                 if (existing.Title != a.title || existing.ItemCount != a.mediaItemsCount)
                 {
-                    _logger.LogDebug("Updating album {title} in database", existing.Title);
+                    _logger.LogDebug("Updating album in database. New title {oldTitle}, old title {newTitle}. New item count {newItemCount}, old item count {oldItemCount}", 
+                        existing.Title, a.title, a.mediaItemsCount, existing.ItemCount);
                     existing.Title = a.title;
                     existing.ItemCount = a.mediaItemsCount;
                 }
@@ -51,6 +52,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             }
             else
             {
+                _logger.LogDebug("New album detected {title} Id: {id}", a.title, a.id);
                 _db.Add(new GoogleAlbum()
                 {
                     Id = a.id,
@@ -66,7 +68,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         foreach (var albumToDelete in albumsToDelete)
         {
             _db.GoogleAlbums.Remove(albumToDelete);
-            _logger.LogInformation("Removed album {title} from database", albumToDelete.Title);
+            _logger.LogInformation("Removed album {title} with id {id} from database", albumToDelete.Title, albumToDelete.Id);
         }
 
         await _db.SaveChangesAsync();
@@ -81,7 +83,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         await foreach (var m in albumMemberships)
         {
             _logger.LogDebug("An album membership was returned at {timestamp}", DateTime.UtcNow);
-            var existing = existingAlbumMemberships.FirstOrDefault(e => e.GoogleAlbumId == m.GoogleAlbumId && e.VideoFileGoogleId == m.VideoFileGoogleId);
+            var existing = existingAlbumMemberships.FirstOrDefault(e => e.AlbumId == m.AlbumId && e.VideoId == m.VideoId);
             if (existing is null)
             {
                 _db.Add(m);
@@ -100,7 +102,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
     private async IAsyncEnumerable<AlbumMembership> ScrapeAlbumMemberships(IEnumerable<string> albumIds)
     {
-        // want to stay below 10 queries per second
+        // API has to be called once for each album.
+        // I want to stay below 10 queries per second.
         Queue<DateTime> queryTimes = new();
         int pageSize = 100;
         foreach (var albumId in albumIds)
