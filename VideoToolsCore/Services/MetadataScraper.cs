@@ -27,6 +27,14 @@ public class MetadataScraper(FFMpegHelper ffmpegHelper, ILogger<MetadataScraper>
         return metadataFromFFMpeg?.FillMissingFrom(metadataFromShell) ?? metadataFromShell;        
     }
 
+    public async Task GetAndAttachMetadataAsync(VideoFileWindows videoFile)
+    {
+        Metadata? metadata = await GetMetadataAsync(videoFile);
+        if (metadata is not null)
+        {
+            videoFile.AttachMetadata(metadata);
+        }
+    }
     
     // Use MicrosoftAPICodePack to get metadata from Windows Shell.
     // It is not threadsafe so these calls will be made synchronously.

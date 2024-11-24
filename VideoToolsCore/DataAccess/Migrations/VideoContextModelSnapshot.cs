@@ -76,6 +76,9 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.Property<long?>("DurationMs")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("LastMetadataScanTimestamp")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
@@ -122,8 +125,21 @@ namespace VideoToolsCore.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastMetadataScanTimestamp")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastModified")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("MachineId")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("MachineId");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("MachineName");
 
                     b.Property<string>("Name")
                         .HasColumnType("TEXT")

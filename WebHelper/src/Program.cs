@@ -24,6 +24,8 @@ var app =  MyHostBuilder.CreateWebHost<Settings>(services =>
                 });
         })
         .AddWebApiVideoService()
+        // give controllers and services access the HttpContext
+        // (middleware already has access)
         .AddHttpContextAccessor()
         .AddControllers();
 });

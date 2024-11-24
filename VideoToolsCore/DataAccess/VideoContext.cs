@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using VideoToolsCore.Models;
+using VideoToolsCore.Services;
 
 namespace VideoToolsCore.DataAccess;
 
@@ -15,11 +15,13 @@ public class VideoContext : DbContext
 
     private readonly string _connectionString;
     private readonly ICurrentUserService? _currentUserService;
+
     internal VideoContext(string connectionString, ICurrentUserService? currentUserService)
     {
         _connectionString = connectionString;
         _currentUserService = currentUserService;
     }
+
     protected override void OnConfiguring(DbContextOptionsBuilder options)
     {
         options.UseSqlite(_connectionString)
@@ -38,18 +40,29 @@ public class VideoContext : DbContext
         modelBuilder.Entity<AlbumMembership>()
             .HasKey(am => new { am.VideoId, am.AlbumId });
 
+        // Lets EF Migrations see these 2 internal members
+        modelBuilder.Entity<VideoFileWindows>()
+            .Property(v => v.MachineName)
+            .HasColumnName("MachineName");
+        modelBuilder.Entity<VideoFileWindows>()
+            .Property(v => v.MachineId)
+            .HasColumnName("MachineId");
+
+        // query filter is applied on all selects, updates, and deletes.
+        modelBuilder.Entity<VideoFileWindows>()
+            .HasQueryFilter(v => v.MachineId == LocalMachineIdService.GetUUID());
         if (_currentUserService is not null)
         {
             modelBuilder.Entity<VideoFileGoogle>()
                 .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
             modelBuilder.Entity<VideoFileWindows>()
-                .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
+                .HasQueryFilter(v => v.Owner == _currentUserService.UserId && v.MachineId == LocalMachineIdService.GetUUID());
             modelBuilder.Entity<GoogleAlbum>()
                 .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
             modelBuilder.Entity<AlbumMembership>()
                 .HasQueryFilter(am => am.Owner == _currentUserService.UserId);
         }
-
+    
         // Relationship between Google videos and albums
         modelBuilder.Entity<AlbumMembership>()
             .HasOne(am => am.VideoFileGoogle)
@@ -77,35 +90,6 @@ public class VideoContext : DbContext
     }
 
 
-    // Ensure videos to be deleted belong to current user
-    public void RemoveRange(IEnumerable<VideoFileBase> videos)
-    {
-        if (_currentUserService is not null)
-        {
-            videos = videos.Where(v => v.Owner == _currentUserService.UserId);
-        }
-
-        base.RemoveRange(videos);
-        SaveChanges();
-    }
-
-    // override base class RemoveRange so it can never be called, circumventing the ownership check
-    public override void RemoveRange(IEnumerable<object> entities)
-    {
-        var videos = entities.OfType<VideoFileBase>().ToList();
-        var nonVideos = entities.Except(videos).ToList();
-
-        if (videos.Count > 0)
-        {
-            RemoveRange(videos);
-        }
-
-        if (nonVideos.Count > 0)
-        {
-            base.RemoveRange(nonVideos);
-        }
-    }
-
     public void RemoveAllVideos()
     {
         var videos = GetVideos<VideoFileBase>();
@@ -116,12 +100,12 @@ public class VideoContext : DbContext
     // hide some methods from the DbContext base class
     public new void Add<T>(T entity) where T : OwnableEntityBase
     {
-        base.Add(AttachOwner(entity));
+        base.Add(AttachMachineIdAndName(AttachOwner(entity)));
     }
 
     public new void Update<T>(T entity) where T : OwnableEntityBase
     {
-        base.Update(AttachOwner(entity));
+        base.Update(AttachMachineIdAndName(AttachOwner(entity)));
     }
 
     private OwnableEntityBase AttachOwner(OwnableEntityBase entity)
@@ -130,6 +114,16 @@ public class VideoContext : DbContext
         {
             var entry = Entry(entity); // converting to EntityEntry helps DbContext track changes
             entry.Property("Owner").CurrentValue = _currentUserService.UserId;
+        }
+        return entity;
+    }
+
+    private object AttachMachineIdAndName(object entity)
+    {
+        if (entity is VideoFileWindows videoFileWindows)
+        {
+            videoFileWindows.MachineId = LocalMachineIdService.GetUUID() ?? string.Empty;
+            videoFileWindows.MachineName = LocalMachineIdService.GetName() ?? string.Empty;
         }
         return entity;
     }

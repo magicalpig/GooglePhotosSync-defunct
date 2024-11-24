@@ -1,12 +1,16 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using VideoToolsCore.DataAccess;
 
 namespace VideoToolsCore.Services;
 
+// Sets up DI, Logging, Configuration, and registers services for scraping metadata from local filesystem.
+// If creating a web app, you'll also get the benefits of WebApplication.CreateBuilder() such as 
+// being able to map endpoints and middleware.
 public class HostBuilder
 {
     public static WebApplication CreateWebHost<TSettings>(Action<IServiceCollection> configureAdditionalServices) where TSettings : class, new()
@@ -28,7 +32,15 @@ public class HostBuilder
     {
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            config.SetBasePath(AppContext.BaseDirectory).AddJsonFile("globalsettings.json", optional: false, reloadOnChange: true);
+            // add globalsettings as the configuration source that comes right after environment variables
+            var globalSettingsSource = new JsonConfigurationSource
+            {
+                Path = Path.Combine(AppContext.BaseDirectory, "globalsettings.json"),
+                Optional = false,
+                ReloadOnChange = true
+            };
+            globalSettingsSource.ResolveFileProvider();
+            config.Sources.Insert(1, globalSettingsSource);
         })
         .ConfigureServices((hostContext, services) =>
         {
@@ -76,7 +88,7 @@ public class HostBuilder
                 break;
             }
         }
-        
+
         Console.WriteLine("-----Settings Object:-----");
         Console.WriteLine(JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
 

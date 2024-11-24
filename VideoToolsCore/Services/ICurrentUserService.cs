@@ -1,4 +1,4 @@
-namespace VideoToolsCore.DataAccess;
+namespace VideoToolsCore.Services;
 
 public interface ICurrentUserService
 {

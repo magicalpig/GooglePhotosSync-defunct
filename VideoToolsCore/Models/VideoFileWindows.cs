@@ -9,6 +9,9 @@ public class VideoFileWindows : VideoFileBase
     public string Folder { get; set; } = String.Empty;
     public string Codec { get; set; } = String.Empty;
     public DateTime? LastModified { get; set; }
+    internal string MachineName { get; set; } = String.Empty;
+    internal string MachineId { get; set; } = String.Empty;
+
 
     public void SyncTo(VideoFileWindows other)
     {
@@ -33,12 +36,13 @@ public class VideoFileWindows : VideoFileBase
              LastModified == other.LastModified;
     }
 
-    public bool LacksMetadata()
+    // these are the metadata fields that all videos should have.
+    // If this method returns true, you probably want to give another go at scraping the metadata.     
+    public bool LacksStandardMetadata()
     {
         return CreatedDate is null
           || DurationMs is null || DurationMs <= 0
-          || Codec is null
-          || string.IsNullOrEmpty(Description);
+          || Codec is null;
     }
 
     // likely to used on an existing db record against one discovered during a filesystem scrape

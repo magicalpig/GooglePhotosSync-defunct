@@ -10,6 +10,8 @@ public abstract class VideoFileBase : OwnableEntityBase
     public string? Description { get; set; }
     public long? Size { get; set; }
 
+    public DateTime? LastMetadataScanTimestamp { get; set; }
+
     // this does not get set directly. It gets set when you set the milliseconds version
     public TimeSpan? Duration { get; private set; }
     private long? _durationMs;
@@ -63,7 +65,8 @@ public abstract class VideoFileBase : OwnableEntityBase
           Description == other.Description &&
           Duration == other.Duration &&
           DurationMs == other.DurationMs &&
-          Size == other.Size;
+          Size == other.Size &&
+          LastMetadataScanTimestamp == other.LastMetadataScanTimestamp;
     }
 
     protected void SyncTo(VideoFileBase other)
@@ -73,6 +76,7 @@ public abstract class VideoFileBase : OwnableEntityBase
         Description = other.Description;
         DurationMs = other.DurationMs;
         Size = other.Size;
+        LastMetadataScanTimestamp = other.LastMetadataScanTimestamp;
     }
 
     public virtual void AttachMetadata(Metadata m)
@@ -80,6 +84,7 @@ public abstract class VideoFileBase : OwnableEntityBase
         DurationMs = m.DurationMs;
         CreatedDate = m.CreatedDate;
         Description = m.Description;
+        LastMetadataScanTimestamp = DateTime.Now;
     }
 
     public override int GetHashCode()

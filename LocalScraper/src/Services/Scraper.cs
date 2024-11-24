@@ -18,33 +18,24 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
     public async Task ScrapeVideos()
     {
-        _logger.LogInformation("Scraping Local File System for videos as user {user}", _db.GetCurrentUser() ?? "unknown");
         if (_settings.FreshDatabase)
         {
             _logger.LogInformation("Per the FreshDatabase setting, clearing out any Windows videos from database");
             _db.RemoveAllVideos();
         }
 
-        string? sourceDir = _settings.SourceDir;
-        if (string.IsNullOrEmpty(sourceDir))
-        {
-            string err = "appsettings.json needs to define SourceDir under the \"Settings\" key.";
-            _logger.LogError("{message}", err);
-            throw new ArgumentException(err);
-        }
-
+        string sourceDir = _settings.SourceDir ?? throw new ArgumentException("\"SourceDir\" setting not found in your configuration.");
+        
         if (!Directory.Exists(sourceDir))
         {
-            string err = $"Directory {sourceDir} does not exist.";
-            _logger.LogError("{message}", err);
-            throw new ArgumentException(err);
+            throw new ArgumentException($"Directory {sourceDir} does not exist.");
         }
 
         // Collect video files from local file system
-        _logger.LogInformation("Collecting information about video files in {sourceDir}", sourceDir);
+        _logger.LogInformation("Collecting information about video files in {sourceDir} as user {u}", sourceDir, _db.GetCurrentUser());
         IEnumerable<string> filePaths = Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories)
-          .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
-          .Select(Path.GetFullPath)
+            .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
+            .Select(Path.GetFullPath)
         ;
         // Possibly limit how many local video files are examined/saved into database
         int? maxFiles = _settings.FileLimit;
@@ -57,7 +48,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         List<Task> tasks = [];
         List<VideoFileWindows> videoFiles = [];
         int countMetadataLookups = 0;
-        HashSet<string> processedDirectories = [];
+        List<string> scannedDirectories = Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories).ToList();
+        scannedDirectories.Add(sourceDir);
+        // normalize slashes the same way we're doing for each file's path.
+        scannedDirectories = scannedDirectories.Select(d => Path.GetFullPath(d)).ToList();
+
         Stopwatch stopwatch = new();
         stopwatch.Start();
 
@@ -79,25 +74,23 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 LastModified = File.GetLastWriteTime(filePath)
             };
 
-            processedDirectories.Add(videoFile.Folder);
             videoFiles.Add(videoFile);
-            
+
             bool getMetadata = forceMetadata;
             if (!getMetadata)
             {
                 VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
                 bool existingIsOutdated = existing?.ModifiedBefore(videoFile) ?? true;
-                // lacksMetadata won't force a metadata read b/c there are properties videos usually never have a value for.
-                bool lacksMetadata = existing?.LacksMetadata() ?? true;
-                _logger.LogDebug("existing: {existing}, lacks metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, lacksMetadata, existingIsOutdated);
+                bool lacksMetadata = existing?.LacksStandardMetadata() ?? true;
+                _logger.LogDebug("existing: {existing}, lacks standard metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, lacksMetadata, existingIsOutdated);
 
-                getMetadata = existing is null || existingIsOutdated;
+                getMetadata = existing is null || lacksMetadata || existingIsOutdated;
             }
 
             if (getMetadata)
             {
                 countMetadataLookups++;
-                tasks.Add(_metadataScraper.GetMetadataAsync(videoFile));
+                tasks.Add(_metadataScraper.GetAndAttachMetadataAsync(videoFile));
             }
         }
         await Task.WhenAll(tasks);
@@ -114,7 +107,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             if (existing is not null)
             {
                 // this tells us a metadata lookup was performed. The new metadata is in videoFile right now.
-                if (existing.ModifiedBefore(videoFile))
+                if (existing.LastMetadataScanTimestamp == null || existing.LastMetadataScanTimestamp < videoFile.LastMetadataScanTimestamp)
                 {
                     _logger.LogDebug("updating local video: {filepath}", existing.Path);
                     existing.SyncTo(videoFile);
@@ -131,26 +124,37 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             }
         }
         _logger.LogInformation("We processed {count} local videos", videoFiles.Count);
-        _db.SaveChanges();
 
         // Remove any videos from the database that are no longer on the local file system
         // Only do this if app was permitted to look at all local files under the specified directory.
         if (maxFiles is null || maxFiles == 0)
         {
-            _logger.LogInformation("Removing videos from database that were previously found in the inspected path but are no longer there.");
-            IEnumerable<VideoFileWindows> dbVideos = _db.WindowsVideos;
-            foreach (string dir in processedDirectories)
+            _logger.LogDebug("Removing videos from database that were previously found under the inspected path but are no longer there.");
+            var dbVideos = _db.WindowsVideos.ToList();
+            var missingRecords = dbVideos.Where(v => scannedDirectories.Contains(v.Folder) && !filePaths.Contains(v.Path)).ToList();
+
+            if (missingRecords.Count > 0)
             {
-                var missingRecords = dbVideos.Where(v => v.Folder == dir && !filePaths.Contains(v.Path));
-                foreach (var m in missingRecords)
-                {
-                    _logger.LogWarning("Video {m.Path} is missing from the file system", m.Path);
-                    _db.Remove(m);
-                }
-                _logger.LogInformation("Removed {count} videos from database that were missing from the {directory} directory", missingRecords.Count(), dir);
+                _logger.LogWarning("Videos missing from the scanned directories ({count}): {missingRecords}", missingRecords.Count, missingRecords.Select(v => v.Path));
+                _db.WindowsVideos.RemoveRange(missingRecords);
             }
-            _db.SaveChanges();
         }
+
+        // Check outside the scanned directory for any deleted directories being referenced in the database
+        _logger.LogDebug("Looking for records in deleted directories");        
+        var allDbDirectories = _db.WindowsVideos.Select(v => v.Folder).Distinct().ToList();
+        var missingDirectories = allDbDirectories.Except(scannedDirectories).Where(dir => !Directory.Exists(dir)).ToList();
+        foreach (var dir in missingDirectories)
+        {
+            var missingRecords = _db.WindowsVideos.Where(v => v.Folder == dir);
+            foreach (var m in missingRecords)
+            {
+                _logger.LogWarning("Video {m.Path} is missing from the file system", m.Path);
+                _db.Remove(m);
+            }
+            _logger.LogWarning("Removed {count} videos from database that were missing from the {directory} directory", missingRecords.Count(), dir);
+        }
+
+        _db.SaveChanges();
     }
-    
 }

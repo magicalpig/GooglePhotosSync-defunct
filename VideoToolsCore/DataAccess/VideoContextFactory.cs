@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using VideoToolsCore.Services;
 
 namespace VideoToolsCore.DataAccess;
 
@@ -31,7 +32,7 @@ public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider?
 
     internal VideoContext CreateVideoContext()
     {
-        return new VideoContext(GetConnectionString(), null);
+        return new VideoContext(GetConnectionString(), currentUserService: null);
     }
 
     private string GetConnectionString()

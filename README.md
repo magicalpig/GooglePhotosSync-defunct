@@ -50,7 +50,7 @@ Connects GoogleVideos to GoogleAlbums.
     1. `globalsettings.json`
     2. `appsettings.json`
     3. `appsettings.Development.json` (if and only if you're running in development mode).     
-Within any or all of these settings files you can have machine-specific settings. These always take higher precedence than non-machine-specific settings and this takes precedence of the file-based precendence system.
+Within any or all of these settings files you can have machine-specific settings. These always take higher precedence than non-machine-specific settings and this takes precedence of the file-based precendence system. In other words, if globalsettings.json has a machine-specific setting, you can only override that in one of the appsettings files if you make it a machine-specific setting.
 
 **Example**
 Here is an example of what a settings file could look like:

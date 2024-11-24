@@ -22,6 +22,6 @@ public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoCo
         var settings = host.Services.GetRequiredService<IProvidesDbFilePath>();
         var logger = host.Services.GetRequiredService<ILogger<VideoContext>>();
 
-        return new VideoContextFactory(logger, null, settings).CreateVideoContext();
+        return new VideoContextFactory(logger, serviceProvider: null, settings).CreateVideoContext();
     }
 }
