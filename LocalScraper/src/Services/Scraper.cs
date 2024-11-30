@@ -1,5 +1,6 @@
 using VideoToolsCore.Models;
 using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 using VideoToolsCore.DataAccess;
 using Microsoft.Extensions.Logging;
 

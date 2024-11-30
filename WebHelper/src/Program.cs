@@ -1,10 +1,9 @@
-using VideoToolsCore.DataAccess;
 using WebHelper.Filters;
 using WebHelper.Middleware;
 using WebHelper.Services;
 using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
 using WebHelper;
-using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 
 var app =  MyHostBuilder.CreateWebHost<Settings>(services =>
 {

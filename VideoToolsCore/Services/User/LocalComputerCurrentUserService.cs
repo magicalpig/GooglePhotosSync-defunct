@@ -1,4 +1,4 @@
-namespace VideoToolsCore.Services;
+namespace VideoToolsCore.Services.User;
 
 public class LocalComputerCurrentUserService : ILocalCurrentUserService
 {

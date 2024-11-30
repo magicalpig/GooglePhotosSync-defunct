@@ -2,6 +2,7 @@
 using LocalScraper.Services;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 using VideoToolsCore.DataAccess;
 
 namespace LocalScraper;

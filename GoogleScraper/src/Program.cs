@@ -3,14 +3,9 @@ using GoogleScraper.Services;
 using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
 using VideoToolsCore.DataAccess;
 using GoogleScraper.Auth;
-using System.Net.Http.Headers;
-using System.Net;
 using CasCap.Services;
-using Polly;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using CasCap.Models;
-using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 
 namespace GoogleScraper;
 

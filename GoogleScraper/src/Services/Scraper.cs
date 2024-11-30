@@ -4,7 +4,7 @@ using CasCap.Services;
 using VideoToolsCore.Models;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.DataAccess;
-using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 
 namespace GoogleScraper.Services;
 

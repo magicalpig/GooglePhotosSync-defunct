@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.Services;
+using VideoToolsCore.Services.User;
 using VideoToolsCore.DataAccess;
 using MetadataGoogleToWindows.Services;
 

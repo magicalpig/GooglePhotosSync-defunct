@@ -1,6 +1,6 @@
 using VideoToolsCore.Models;
 
-namespace VideoToolsCore.Services;
+namespace VideoToolsCore.Services.User;
 
 public class DualCurrentUserService(IGoogleCurrentUserService? googleCurrentUserService = null, ILocalCurrentUserService? windowsCurrentUserService = null) : IDualCurrentUserService
 {
