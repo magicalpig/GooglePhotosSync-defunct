@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GoogleScraper.Services;
 
-public class GoogleApiCurrentUserService : ICurrentUserService
+public class GoogleApiCurrentUserService : IGoogleCurrentUserService
 {
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient;

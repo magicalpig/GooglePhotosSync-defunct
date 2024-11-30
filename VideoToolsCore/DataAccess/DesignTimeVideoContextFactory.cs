@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.Services;
+using VideoToolsCore.Utilities;
 
 namespace VideoToolsCore.DataAccess;
 
@@ -10,7 +11,7 @@ namespace VideoToolsCore.DataAccess;
 // allows dotnet EF commands to create a VideoContext
 public class DesignTimeVideoContextFactory : IDesignTimeDbContextFactory<VideoContext>
 {
-    private record Settings : IProvidesDbFilePath
+    private class Settings : BaseSettings, IProvidesDbFilePath
     {
         public string? DbFilePath { get; set; }
     }

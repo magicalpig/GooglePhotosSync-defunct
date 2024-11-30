@@ -4,16 +4,18 @@ using CasCap.Services;
 using VideoToolsCore.Models;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.DataAccess;
+using VideoToolsCore.Services;
 
 namespace GoogleScraper.Services;
 
-public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, GooglePhotosService service, IDualCurrentUserService currentUserService)
 {
     // Injected dependencies
     private readonly Settings _settings = settings;
     private readonly ILogger<Scraper> _logger = logger;
     private readonly GooglePhotosService _googleService = service;
-    private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<GoogleApiCurrentUserService>();
+    private readonly IDualCurrentUserService _currentUserService = currentUserService;
+    private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext();
 
     private static readonly Filter _videoOnlyFilter = new()
     {
@@ -27,7 +29,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             _logger.LogInformation("ScrapeGoogleAlbums setting is false, so not scraping Google Photos albums from REST API");
             return;
         }
-        _logger.LogInformation("Scraping Google Photos albums as user {user}", _db.GetCurrentUser() ?? "unknown");
+        _logger.LogInformation("Scraping Google Photos albums as user {user}", _currentUserService.GoogleCurrentUserService?.UserId ?? "unknown");
 
         // get most recent list of albums as well as the existing list for comparison
         List<Album> albums = await _googleService.GetAlbumsAsync();
@@ -77,7 +79,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
 
         // Now for the video-to-album membership
-        List<AlbumMembership> existingAlbumMemberships = await _db.AlbumMemberships.ToListAsync();
+        List<AlbumMembership> existingAlbumMemberships = await _db.AlbumMemberships.ToListAsync(); 
         IAsyncEnumerable<AlbumMembership> albumMemberships = ScrapeAlbumMemberships(albums.Select(a => a.id).Reverse());
 
         await foreach (var m in albumMemberships)
@@ -163,7 +165,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
         int? pageLimit = _settings.PageLimitGoogle;
         if (pageLimit > 0)
-            _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _db.GetCurrentUser() ?? "unknown");
+            _logger.LogDebug("Collecting information about Google videos up to {pageLimit} pages for user {localUserId}", pageLimit, _currentUserService.GoogleCurrentUserService?.UserId ?? "unknown");
         else
             pageLimit = null;
 

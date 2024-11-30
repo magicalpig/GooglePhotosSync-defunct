@@ -1,8 +1,9 @@
 using VideoToolsCore.DataAccess;
+using VideoToolsCore.Utilities;
 
 namespace WebHelper;
 
-public record Settings : IProvidesDbFilePath
+public class Settings : BaseSettings, IProvidesDbFilePath
 {
     public string? DbFilePath { get; set; }
 }

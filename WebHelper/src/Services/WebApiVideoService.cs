@@ -16,7 +16,7 @@ public enum UpdateResultCode
 // from a web browser that has just made use of Google's RPC API.
 public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebApiVideoService> logger)
 {
-    private readonly VideoContext _db = contextFactory.CreateUserScopedVideoContext<WebApiCurrentUserService>();
+    private readonly VideoContext _db = contextFactory.CreateUserScopedVideoContext();
     private readonly ILogger<WebApiVideoService> _logger = logger;
 
     // try to update an existing google video record with the metadata just scraped from the RPC API.

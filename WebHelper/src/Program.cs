@@ -4,10 +4,14 @@ using WebHelper.Middleware;
 using WebHelper.Services;
 using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
 using WebHelper;
+using VideoToolsCore.Services;
 
 var app =  MyHostBuilder.CreateWebHost<Settings>(services =>
 {
-    services.AddEndpointsApiExplorer()
+    services
+        .AddScoped<IGoogleCurrentUserService, WebApiCurrentUserService>()
+        .AddScoped<IDualCurrentUserService, DualCurrentUserService>()
+        .AddEndpointsApiExplorer()
         .AddSwaggerGen(c =>
         {
             c.SwaggerDoc("v1", new() { Title = "WebHelper", Version = "v1" });

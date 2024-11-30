@@ -10,13 +10,13 @@ public class VideoContext : DbContext
 {
     public DbSet<VideoFileGoogle> GoogleVideos => GetVideos<VideoFileGoogle>();
     public DbSet<VideoFileWindows> WindowsVideos => GetVideos<VideoFileWindows>();
-    public DbSet<GoogleAlbum> GoogleAlbums { get; set; }
-    public DbSet<AlbumMembership> AlbumMemberships { get; set; }
+    public DbSet<GoogleAlbum> GoogleAlbums => GetAlbums<GoogleAlbum>();
+    public DbSet<AlbumMembership> AlbumMemberships => GetAlbumMemberships();
 
     private readonly string _connectionString;
-    private readonly ICurrentUserService? _currentUserService;
+    private readonly IDualCurrentUserService? _currentUserService;
 
-    internal VideoContext(string connectionString, ICurrentUserService? currentUserService)
+    internal VideoContext(string connectionString, IDualCurrentUserService? currentUserService)
     {
         _connectionString = connectionString;
         _currentUserService = currentUserService;
@@ -49,20 +49,25 @@ public class VideoContext : DbContext
             .HasColumnName("MachineId");
 
         // query filter is applied on all selects, updates, and deletes.
-        modelBuilder.Entity<VideoFileWindows>()
-            .HasQueryFilter(v => v.MachineId == LocalMachineIdService.GetUUID());
         if (_currentUserService is not null)
         {
+            var googleUser = _currentUserService.GoogleCurrentUserService?.UserId;
+            var localUser = _currentUserService.LocalCurrentUserService?.UserId;
             modelBuilder.Entity<VideoFileGoogle>()
-                .HasQueryFilter(v => v.Owner == _currentUserService.UserId);
-            modelBuilder.Entity<VideoFileWindows>()
-                .HasQueryFilter(v => v.Owner == _currentUserService.UserId && v.MachineId == LocalMachineIdService.GetUUID());
+                .HasQueryFilter(v => v.Owner == googleUser);
             modelBuilder.Entity<GoogleAlbum>()
-                .HasQueryFilter(a => a.Owner == _currentUserService.UserId);
+                .HasQueryFilter(a => a.Owner == googleUser);
             modelBuilder.Entity<AlbumMembership>()
-                .HasQueryFilter(am => am.Owner == _currentUserService.UserId);
+                .HasQueryFilter(am => am.Owner == googleUser);
+            modelBuilder.Entity<VideoFileWindows>()
+                .HasQueryFilter(v => v.Owner == localUser && v.MachineId == LocalMachineIdService.GetUUID());
         }
-    
+        else
+        {
+            modelBuilder.Entity<VideoFileWindows>()
+                .HasQueryFilter(v => v.MachineId == LocalMachineIdService.GetUUID());
+        }
+
         // Relationship between Google videos and albums
         modelBuilder.Entity<AlbumMembership>()
             .HasOne(am => am.VideoFileGoogle)
@@ -87,6 +92,14 @@ public class VideoContext : DbContext
     private DbSet<T> GetVideos<T>() where T : VideoFileBase
     {
         return Set<T>();
+    }
+    private DbSet<T> GetAlbums<T>() where T : GoogleAlbum // maybe will be expanded to other types of albums
+    {
+        return Set<T>();
+    }
+    private DbSet<AlbumMembership> GetAlbumMemberships()
+    {
+        return Set<AlbumMembership>();
     }
 
 
@@ -113,7 +126,9 @@ public class VideoContext : DbContext
         if (_currentUserService is not null)
         {
             var entry = Entry(entity); // converting to EntityEntry helps DbContext track changes
-            entry.Property("Owner").CurrentValue = _currentUserService.UserId;
+            var owner = _currentUserService.GetCurrentUserForEntity(entity);
+
+            entry.Property("Owner").CurrentValue = owner;
         }
         return entity;
     }
@@ -126,10 +141,5 @@ public class VideoContext : DbContext
             videoFileWindows.MachineName = LocalMachineIdService.GetName() ?? string.Empty;
         }
         return entity;
-    }
-
-    public string? GetCurrentUser()
-    {
-        return _currentUserService?.UserId;
     }
 }

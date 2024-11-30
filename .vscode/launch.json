@@ -67,6 +67,26 @@
       "justMyCode": false
     },
     {
+      "name": "Launch MetadataGoogleToWindows",
+      "type": "coreclr",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/MetadataGoogleToWindows/bin/Debug/net8.0-windows/",
+      "program": "${workspaceFolder}/MetadataGoogleToWindows/bin/Debug/net8.0-windows/MetadataGoogleToWindows.dll",
+      "args": [],
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "logging": {
+        "moduleLoad": false,
+        "trace": "verbose"
+      },
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "justMyCode": false,
+      "requireExactSource": false
+    },
+    {
       "name": "Launch LocalScraper Production",
       "type": "coreclr",
       "request": "launch",

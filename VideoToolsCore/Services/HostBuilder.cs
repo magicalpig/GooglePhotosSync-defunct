@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using VideoToolsCore.DataAccess;
+using VideoToolsCore.Utilities;
 
 namespace VideoToolsCore.Services;
 
@@ -13,14 +14,14 @@ namespace VideoToolsCore.Services;
 // being able to map endpoints and middleware.
 public class HostBuilder
 {
-    public static WebApplication CreateWebHost<TSettings>(Action<IServiceCollection> configureAdditionalServices) where TSettings : class, new()
+    public static WebApplication CreateWebHost<TSettings>(Action<IServiceCollection> configureAdditionalServices) where TSettings : BaseSettings, new()
     {
         var builder = WebApplication.CreateBuilder();
         ConfigureCommonHost<TSettings>(builder.Host, configureAdditionalServices);
         return builder.Build();
     }
 
-    public static IHost CreateConsoleHost<TSettings>(Action<IServiceCollection> configureAdditionalServices) where TSettings : class, new()
+    public static IHost CreateConsoleHost<TSettings>(Action<IServiceCollection> configureAdditionalServices) where TSettings : BaseSettings, new()
     {
         var builder = Host.CreateDefaultBuilder();
         ConfigureCommonHost<TSettings>(builder, configureAdditionalServices);
@@ -28,7 +29,7 @@ public class HostBuilder
     }
 
 
-    private static void ConfigureCommonHost<TSettings>(IHostBuilder builder, Action<IServiceCollection> configureAdditionalServices) where TSettings : class, new()
+    private static void ConfigureCommonHost<TSettings>(IHostBuilder builder, Action<IServiceCollection> configureAdditionalServices) where TSettings : BaseSettings, new()
     {
         builder.ConfigureAppConfiguration((context, config) =>
         {

@@ -1,6 +1,7 @@
 using VideoToolsCore.DataAccess;
+using VideoToolsCore.Utilities;
 
-public record Settings : IProvidesDbFilePath
+public class Settings : BaseSettings, IProvidesDbFilePath
 {
     public bool FreshDatabase { get; set; } = false;        
     public int? PageLimitGoogle { get; set; }

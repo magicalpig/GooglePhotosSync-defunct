@@ -14,8 +14,9 @@ class Program
         {
             // We need the same http client to be used by GoogleScraper and GooglePhotosService
             // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use      
-            services.AddSingleton<Scraper>()
-                .AddSingleton<LocalComputerCurrentUserService>()
+            services.AddSingleton<Scraper>()       
+                .AddSingleton<ILocalCurrentUserService, LocalComputerCurrentUserService>()         
+                .AddSingleton<IDualCurrentUserService, DualCurrentUserService>()
                 .AddSingleton<VideoContextFactory>()
                 .AddSingleton<FFMpegHelper>();
         });

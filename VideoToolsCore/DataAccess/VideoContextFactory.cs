@@ -16,15 +16,15 @@ public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider?
     private readonly IServiceProvider? _serviceProvider = serviceProvider;
     private readonly IProvidesDbFilePath _settings = settings;
 
-    public VideoContext CreateUserScopedVideoContext<T>() where T : class, ICurrentUserService
+    public VideoContext CreateUserScopedVideoContext()
     {
-        ICurrentUserService? currentUserService = _serviceProvider?.GetRequiredService<T>();
+        IDualCurrentUserService? currentUserService = _serviceProvider?.GetRequiredService<IDualCurrentUserService>();
 
         if (currentUserService is null)
         {
-            string errMsgTpl = "Could not create a user-scoped VideoContext using an ICurrentUserService of type {currentUserServiceType}. Maybe that ICurrentUserService implementation is not registered with DI, or maybe no IServiceProvider is available to the VideoContextFactory.";
-            _logger.LogError(errMsgTpl, typeof(T));
-            throw new InvalidOperationException(string.Format(errMsgTpl, typeof(T)));
+            string errMsg = "Could not create a user-scoped VideoContext because there was no implementation of IDualCurrentUserService available in the service provider.";
+            _logger.LogError(errMsg);
+            throw new InvalidOperationException(errMsg);
         }
 
         return new VideoContext(GetConnectionString(), currentUserService);

@@ -9,12 +9,13 @@ using System.Diagnostics;
 
 namespace LocalScraper.Services;
 
-public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, MetadataScraper metadataScraper)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, MetadataScraper metadataScraper, IDualCurrentUserService currentUserService)
 {
-    private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext<LocalComputerCurrentUserService>();
+    private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext();
     private readonly Settings _settings = settings;
     private readonly ILogger<Scraper> _logger = logger;
     private readonly MetadataScraper _metadataScraper = metadataScraper;
+    private readonly IDualCurrentUserService _currentUserService = currentUserService;
 
     public async Task ScrapeVideos()
     {
@@ -32,7 +33,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         }
 
         // Collect video files from local file system
-        _logger.LogInformation("Collecting information about video files in {sourceDir} as user {u}", sourceDir, _db.GetCurrentUser());
+        _logger.LogInformation("Collecting information about video files in {sourceDir} as user {u}", sourceDir, _currentUserService.GetCurrentUserForEntity(new VideoFileWindows()));
         IEnumerable<string> filePaths = Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories)
             .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
             .Select(Path.GetFullPath)
@@ -47,15 +48,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
         List<Task> tasks = [];
         List<VideoFileWindows> videoFiles = [];
-        int countMetadataLookups = 0;
         List<string> scannedDirectories = Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories).ToList();
         scannedDirectories.Add(sourceDir);
         // normalize slashes the same way we're doing for each file's path.
         scannedDirectories = scannedDirectories.Select(d => Path.GetFullPath(d)).ToList();
-
-        Stopwatch stopwatch = new();
-        stopwatch.Start();
-
+        
         bool forceMetadata = false;
         if (_settings.ForceMetadataRefresh)
         {
@@ -63,6 +60,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             _logger.LogWarning("Getting metadata for all local video files because ForceMetadataRefresh setting is true.");
         }
 
+        Stopwatch stopwatch = new();
+        stopwatch.Start();
         foreach (string filePath in filePaths)
         {
             VideoFileWindows videoFile = new()
@@ -89,7 +88,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
             if (getMetadata)
             {
-                countMetadataLookups++;
                 tasks.Add(_metadataScraper.GetAndAttachMetadataAsync(videoFile));
             }
         }
@@ -97,7 +95,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         stopwatch.Stop();
         if (tasks.Count > 0)
         {
-            _logger.LogDebug("Grabbing metadata for {countMetadataLookups} videos took {elapsed} milliseconds", tasks.Count, stopwatch.ElapsedMilliseconds);
+            _logger.LogDebug("Grabbing metadata for {c} videos took {elapsed} milliseconds", tasks.Count, stopwatch.ElapsedMilliseconds);
         }
 
 
@@ -125,8 +123,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         }
         _logger.LogInformation("We processed {count} local videos", videoFiles.Count);
 
-        // Remove any videos from the database that are no longer on the local file system
-        // Only do this if app was permitted to look at all local files under the specified directory.
+        // Remove db records for videos no longer present under the scanned directory.
+        // Only do this if there was no limit on number of files to process.
         if (maxFiles is null || maxFiles == 0)
         {
             _logger.LogDebug("Removing videos from database that were previously found under the inspected path but are no longer there.");
