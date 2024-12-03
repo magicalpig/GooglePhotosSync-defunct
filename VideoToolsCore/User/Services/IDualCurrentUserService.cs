@@ -1,6 +1,6 @@
-using VideoToolsCore.Models;
+using VideoToolsCore.DataAccess.Models;
 
-namespace VideoToolsCore.Services.User;
+namespace VideoToolsCore.User.Services;
 
 public interface IDualCurrentUserService
 {

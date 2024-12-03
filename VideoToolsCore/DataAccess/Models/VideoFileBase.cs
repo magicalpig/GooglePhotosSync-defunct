@@ -1,6 +1,7 @@
 using VideoToolsCore.Attributes;
+using VideoToolsCore.Metadata.Models;
 
-namespace VideoToolsCore.Models;
+namespace VideoToolsCore.DataAccess.Models;
 
 public abstract class VideoFileBase : OwnableEntityBase
 {
@@ -79,7 +80,7 @@ public abstract class VideoFileBase : OwnableEntityBase
         LastMetadataScanTimestamp = other.LastMetadataScanTimestamp;
     }
 
-    public virtual void AttachMetadata(Metadata m)
+    public virtual void AttachMetadata(VideoMetadata m)
     {
         DurationMs = m.DurationMs;
         CreatedDate = m.CreatedDate;

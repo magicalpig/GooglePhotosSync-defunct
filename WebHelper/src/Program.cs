@@ -3,7 +3,7 @@ using WebHelper.Middleware;
 using WebHelper.Services;
 using MyHostBuilder = VideoToolsCore.Services.HostBuilder;
 using WebHelper;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 
 var app =  MyHostBuilder.CreateWebHost<Settings>(services =>
 {

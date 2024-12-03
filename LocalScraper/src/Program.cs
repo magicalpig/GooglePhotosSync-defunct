@@ -2,7 +2,7 @@
 using LocalScraper.Services;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.Services;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 using VideoToolsCore.DataAccess;
 
 namespace LocalScraper;
@@ -18,8 +18,7 @@ class Program
             services.AddSingleton<Scraper>()       
                 .AddSingleton<ILocalCurrentUserService, LocalComputerCurrentUserService>()         
                 .AddSingleton<IDualCurrentUserService, DualCurrentUserService>()
-                .AddSingleton<VideoContextFactory>()
-                .AddSingleton<FFMpegHelper>();
+                .AddSingleton<VideoContextFactory>();
         });
 
         var localFileSystemScraper = host.Services.GetRequiredService<Scraper>();

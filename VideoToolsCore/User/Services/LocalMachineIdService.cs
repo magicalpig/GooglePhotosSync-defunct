@@ -1,6 +1,6 @@
 using System.Management;
 
-namespace VideoToolsCore.Services.User;
+namespace VideoToolsCore.User.Services;
 
 public static class LocalMachineIdService
 {

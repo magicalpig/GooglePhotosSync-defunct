@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using CasCap.Models;
 using CasCap.Services;
-using VideoToolsCore.Models;
+using VideoToolsCore.DataAccess.Models;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.DataAccess;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 
 namespace GoogleScraper.Services;
 

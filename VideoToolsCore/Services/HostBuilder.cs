@@ -6,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using VideoToolsCore.DataAccess;
 using VideoToolsCore.Utilities;
+using VideoToolsCore.Metadata.Providers;
+using VideoToolsCore.Metadata.Services;
 
 namespace VideoToolsCore.Services;
 
@@ -45,15 +47,20 @@ public class HostBuilder
         })
         .ConfigureServices((hostContext, services) =>
         {
+            // register settings as both its base class and as the specific settings class
+            // just to satisfy any class that tries to receive it as a BaseSettings
             var settings = BuildSettingsFromConfig<TSettings>(hostContext.Configuration, hostContext.HostingEnvironment);
+            services.AddSingleton<BaseSettings>(settings);
             services.AddSingleton(settings);
 
-            if (settings is IProvidesFFMpegPath ffMpegPath)
+            services.AddSingleton<IMetadataProvider, ShellMetadataProvider>();
+            if (settings is IProvidesFFMpegPath settingsWithFFMpegPath && !string.IsNullOrEmpty(settingsWithFFMpegPath.FFMpegPath))
             {
-                services.AddSingleton<FFMpegHelper>()
-                    .AddSingleton(ffMpegPath)
-                    .AddSingleton<MetadataScraper>();
+                services.AddSingleton<IMetadataProvider, FFMpegMetadataProvider>()
+                    .AddSingleton(settingsWithFFMpegPath);
             }
+            services.AddSingleton<MetadataHelper>();
+            
             if (settings is IProvidesDbFilePath dbFilePath)
             {
                 services.AddSingleton(dbFilePath);
@@ -63,7 +70,7 @@ public class HostBuilder
         });
     }
 
-    private static TSettings BuildSettingsFromConfig<TSettings>(IConfiguration config, IHostEnvironment environment) where TSettings : class, new()
+    private static TSettings BuildSettingsFromConfig<TSettings>(IConfiguration config, IHostEnvironment environment) where TSettings : BaseSettings, new()
     {
         if (environment.IsDevelopment())
         {

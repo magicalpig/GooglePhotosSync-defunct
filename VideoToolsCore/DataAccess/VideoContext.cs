@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using VideoToolsCore.Models;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.DataAccess.Models;
+using VideoToolsCore.User.Services;
 
 namespace VideoToolsCore.DataAccess;
 

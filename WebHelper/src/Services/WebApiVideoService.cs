@@ -1,4 +1,4 @@
-using VideoToolsCore.Models;
+using VideoToolsCore.DataAccess.Models;
 using VideoToolsCore.DataAccess;
 using WebHelper.Models;
 using Microsoft.EntityFrameworkCore;

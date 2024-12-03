@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 
 namespace VideoToolsCore.DataAccess;
 

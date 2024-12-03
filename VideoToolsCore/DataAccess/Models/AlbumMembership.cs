@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
-namespace VideoToolsCore.Models;
+namespace VideoToolsCore.DataAccess.Models;
 
 public class AlbumMembership(string videoId, string albumId) : OwnableEntityBase
 {

@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.Services;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 using VideoToolsCore.DataAccess;
 using MetadataGoogleToWindows.Services;
 
@@ -17,15 +17,16 @@ class Program
             // so that GoogleScraper can do the login and set the authorization headers for GooglePhotosService to use      
             services.AddSingleton<MetadataCopier>()
                 .AddSingleton<LocalComputerCurrentUserService>()
-                .AddSingleton<VideoContextFactory>()
-                .AddSingleton<FFMpegHelper>()
+                .AddSingleton<VideoContextFactory>()                
+                .AddSingleton<VideoEntityMatcher>()
                 .AddSingleton<ILocalCurrentUserService, LocalComputerCurrentUserService>()
+                .AddSingleton<IGoogleCurrentUserService, SettingsGoogleCurrentUserService>()
                 .AddSingleton<IDualCurrentUserService, DualCurrentUserService>()
                 // puts a User-Scoped Video Context into DI container
-                .AddSingleton(sp => {
+                .AddSingleton<VideoContext>(sp => 
+                {
                     var factory = sp.GetRequiredService<VideoContextFactory>();
                     return factory.CreateUserScopedVideoContext();
-
                 });
         });
 
@@ -35,8 +36,7 @@ class Program
             var settings = host.Services.GetRequiredService<Settings>();
             var sourceDir = settings.GetRequiredSetting("SourceDir");
             var propToCopy = settings.GetRequiredSetting("MetadataProperty");
-            var googleOwner = settings.GetRequiredSetting("GoogleOwner");
-            await metadataCopier.CopyMetadata(sourceDir, propToCopy, googleOwner);
+            await metadataCopier.CopyMetadataAsync(sourceDir, propToCopy);
         }
         catch (Exception ex)
         {

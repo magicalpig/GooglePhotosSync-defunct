@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using VideoToolsCore.Metadata.Models;
 
-namespace VideoToolsCore.Models;
+namespace VideoToolsCore.DataAccess.Models;
 
 [Table("WindowsVideos")]
 public class VideoFileWindows : VideoFileBase
@@ -56,7 +57,7 @@ public class VideoFileWindows : VideoFileBase
         return HashCode.Combine(base.GetHashCode(), Path, Folder, Codec, LastModified);
     }
 
-    public override void AttachMetadata(Metadata m)
+    public override void AttachMetadata(VideoMetadata m)
     {
         base.AttachMetadata(m);
         Codec = m.Codec;

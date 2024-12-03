@@ -1,4 +1,4 @@
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
 
 namespace WebHelper.Services;
 public class WebApiCurrentUserService(IHttpContextAccessor httpContextAccessor) : IGoogleCurrentUserService

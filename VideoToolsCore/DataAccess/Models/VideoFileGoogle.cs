@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using VideoToolsCore.Attributes;
 
-namespace VideoToolsCore.Models;
+namespace VideoToolsCore.DataAccess.Models;
 
 
 [Table("GoogleVideos")]

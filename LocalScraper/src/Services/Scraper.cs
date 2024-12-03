@@ -1,21 +1,22 @@
-using VideoToolsCore.Models;
+using VideoToolsCore.DataAccess.Models;
 using VideoToolsCore.Services;
-using VideoToolsCore.Services.User;
+using VideoToolsCore.User.Services;
+using VideoToolsCore.Metadata.Services;
 using VideoToolsCore.DataAccess;
 using Microsoft.Extensions.Logging;
-
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 
 
 
 namespace LocalScraper.Services;
 
-public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, MetadataScraper metadataScraper, IDualCurrentUserService currentUserService)
+public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<Scraper> logger, MetadataHelper metadataScraper, IDualCurrentUserService currentUserService)
 {
     private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext();
     private readonly Settings _settings = settings;
     private readonly ILogger<Scraper> _logger = logger;
-    private readonly MetadataScraper _metadataScraper = metadataScraper;
+    private readonly MetadataHelper _metadataScraper = metadataScraper;
     private readonly IDualCurrentUserService _currentUserService = currentUserService;
 
     public async Task ScrapeVideos()
@@ -79,10 +80,10 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             bool getMetadata = forceMetadata;
             if (!getMetadata)
             {
-                VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
+                VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => EF.Functions.Collate(w.Path, "NOCASE") == videoFile.Path);
                 bool existingIsOutdated = existing?.ModifiedBefore(videoFile) ?? true;
                 bool lacksMetadata = existing?.LacksStandardMetadata() ?? true;
-                _logger.LogDebug("existing: {existing}, lacks standard metadata: {lacksMetadata}, outdated: {outdated}", existing?.Path, lacksMetadata, existingIsOutdated);
+                _logger.LogDebug("File: {file}: exists: {existing}, lacks standard metadata: {lacksMetadata}, outdated: {outdated}", videoFile.Path, existing?.Path, lacksMetadata, existingIsOutdated);
 
                 getMetadata = existing is null || lacksMetadata || existingIsOutdated;
             }
@@ -102,7 +103,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
         foreach (var videoFile in videoFiles)
         {
-            VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => w.Path == videoFile.Path);
+            VideoFileWindows? existing = _db.WindowsVideos.FirstOrDefault(w => EF.Functions.Collate(w.Path, "NOCASE") == videoFile.Path);
             if (existing is not null)
             {
                 // this tells us a metadata lookup was performed. The new metadata is in videoFile right now.

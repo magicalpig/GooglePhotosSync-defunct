@@ -1,4 +1,4 @@
-namespace VideoToolsCore.Models;
+namespace VideoToolsCore.DataAccess.Models;
 
 public abstract class OwnableEntityBase
 {
