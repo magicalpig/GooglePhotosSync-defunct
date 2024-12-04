@@ -3,16 +3,16 @@ using VideoToolsCore.DataAccess.Models;
 using VideoToolsCore.Metadata.Models;
 using VideoToolsCore.Utilities;
 
-namespace VideoToolsCore.Metadata.Providers;
+namespace VideoToolsCore.Metadata.Readers;
 
-
-public class FFMpegMetadataProvider(IProvidesFFMpegPath settings) : FFMpegBase(settings), IMetadataProvider
+public class FFMpegMetadataReader() : IMetadataReader
 {
+    public int Priority { get; init; } = 1;
 
     // call ffprobe to get whatever metadata we can
     public async Task<VideoMetadata> GetMetadataAsync(VideoFileWindows videoFile)
     {
-        await s_semaphore.WaitAsync();
+        await Semaphores.FFMpegSemaphore.WaitAsync();
         try
         {
             IMediaAnalysis analysis = await FFProbe.AnalyseAsync(videoFile.Path);
@@ -20,12 +20,7 @@ public class FFMpegMetadataProvider(IProvidesFFMpegPath settings) : FFMpegBase(s
         }
         finally
         {
-            s_semaphore.Release();
+            Semaphores.FFMpegSemaphore.Release();
         }
-    }
-
-    public async Task WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)
-    {
-        await Task.CompletedTask;        
     }
 }

@@ -1,10 +1,11 @@
 using System.Reflection;
 using FFMpegCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace VideoToolsCore.Metadata.Models;
 
 [AttributeUsage(AttributeTargets.Property)]
-public class OverwritableMetadataAttribute : Attribute { }
+public class WritableMetadataAttribute : Attribute { }
 
 [AttributeUsage(AttributeTargets.Property)]
 public class DbColumnAttribute(string columnName) : Attribute
@@ -12,35 +13,42 @@ public class DbColumnAttribute(string columnName) : Attribute
     public string ColumnName { get; } = columnName;
 }
 
-[AttributeUsage(AttributeTargets.Property)]
-public class ShellPropertyAttribute(string shellPropertyName) : Attribute
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
+public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite) : Attribute
 {
-    public string ShellPropertyName { get; } = shellPropertyName;
+    public string FieldToWrite { get; } = fieldToWrite;
+    public string WriterType { get; } = writerType;
 }
 
 // defines the properties of a video file that can be scraped and in some cases written
+// Summary of the properties:
+//  Codec: Non-nullable string, defaults to "unknown"
+//  CreatedDate: Nullable DateTime
+//  Description: Nullable string
+//  DurationMs: Nullable long value
+
 public record VideoMetadata
 {
     public static readonly string UNKNOWN_CODEC = "unknown";
-    
+
     public long? DurationMs { get; set; }
 
     public string Codec { get; set; } = UNKNOWN_CODEC;
 
-    [OverwritableMetadata]
-    [ShellProperty("System.Media.DateEncoded")]
+    [WritableMetadata]
+    [MetadataFieldForWriting("ShellMetadataWriter", "System.Media.DateEncoded")]
     [DbColumn("CreatedDate")]
     public DateTime? CreatedDate { get; set; }
 
-    [OverwritableMetadata]
-    [ShellProperty("System.Title")]
+    [WritableMetadata]
+    [MetadataFieldForWriting("ShellMetadataWriter", "System.Title")]
     [DbColumn("Description")]
     public string? Description { get; set; }
 
-    public VideoMetadata() {    }
-    
-    public VideoMetadata(IMediaAnalysis ffmpegAnalysis) 
-    {     
+    public VideoMetadata() { }
+
+    public VideoMetadata(IMediaAnalysis ffmpegAnalysis)
+    {
         DurationMs = (long)ffmpegAnalysis.Duration.TotalMilliseconds;
 
         Codec = ffmpegAnalysis.VideoStreams.FirstOrDefault()?.CodecLongName
@@ -53,7 +61,7 @@ public record VideoMetadata
             {
                 CreatedDate = DateTime.Parse(dateString);
             }
-                
+
             List<string> descParts = ["title", "comment"];
             Description = string.Join(" | ", descParts
                 .Select(k => tags.GetValueOrDefault(k))
@@ -67,7 +75,7 @@ public record VideoMetadata
         {
             return this;
         }
-        
+
         if ((DurationMs is null || DurationMs <= 0) && other.DurationMs > 0)
         {
             DurationMs = other.DurationMs;
@@ -87,19 +95,43 @@ public record VideoMetadata
         return this;
     }
 
+    // this pertains to the question of whether it's worth trying to scrape additional metadata
     public bool IsIncomplete()
     {
-        return DurationMs <= 0 || string.IsNullOrEmpty(Codec)  || string.Equals(Codec, UNKNOWN_CODEC) || CreatedDate is null || string.IsNullOrEmpty(Description);
+        return !DurationMs.HasValue || DurationMs <= 0 || string.IsNullOrEmpty(Codec) || string.Equals(Codec, UNKNOWN_CODEC) || CreatedDate is null || string.IsNullOrEmpty(Description);
     }
 
-    public static bool IsPropertyOverwritable(string propertyName)
-    {        
-        var property = typeof(VideoMetadata).GetProperty(propertyName);
-        return property != null && IsPropertyOverwritable(property);
-    }
-    public static bool IsPropertyOverwritable(PropertyInfo property)
+    // This pertains to passing around a metadata object into metadata writers
+    // It signifies that there are still some values in the object that can be written to the file.
+    public bool HasAnyWritableValues()
     {
-        return property.GetCustomAttributes(typeof(OverwritableMetadataAttribute), false).Length > 0;
+        foreach (var prop in GetType().GetProperties())
+        {
+            var value = prop.GetValue(this);
+            if (IsPropertyWritable(prop) && value != null && !(prop.Name == "Codec" && value.ToString() == UNKNOWN_CODEC))
+            {
+                return true;
+            }           
+        }
+        return false;
+    }
+
+    public List<string> GetWritableProperties()
+    {
+        return GetType().GetProperties()
+            .Where(p => IsPropertyWritable(p))
+            .Select(p => p.Name)
+            .ToList();
+    }
+
+    public static bool IsPropertyWritable(string propertyName)
+    {
+        var property = typeof(VideoMetadata).GetProperty(propertyName);
+        return property != null && IsPropertyWritable(property);
+    }
+    public static bool IsPropertyWritable(PropertyInfo property)
+    {
+        return property.GetCustomAttributes(typeof(WritableMetadataAttribute), false).Length > 0;
     }
 
     public static string? GetDbColumnForMetadataProperty(string propertyName)
@@ -109,9 +141,13 @@ public record VideoMetadata
         return dbColumnAttribute?.ColumnName;
     }
 
-    public static string? GetShellPropertyForMetadataProperty(PropertyInfo property)
-    {        
-        var shellPropertyAttribute = property?.GetCustomAttributes(typeof(ShellPropertyAttribute), false).FirstOrDefault() as ShellPropertyAttribute;
-        return shellPropertyAttribute?.ShellPropertyName;
+    // for a given metadata writer type and a given VideoMetadata property, get the name of the field to write to
+    public static string? GetMetadataWritableField(string writerType, PropertyInfo property)
+    {
+        var attribute = property.GetCustomAttributes(typeof(MetadataFieldForWritingAttribute), false)
+                                .Cast<MetadataFieldForWritingAttribute>()
+                                .FirstOrDefault(a => a.WriterType == writerType);
+        return attribute?.FieldToWrite;
+  
     }
 }

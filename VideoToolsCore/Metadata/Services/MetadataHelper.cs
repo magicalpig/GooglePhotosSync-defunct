@@ -1,54 +1,75 @@
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.DataAccess.Models;
-using VideoToolsCore.Metadata.Providers;
+using VideoToolsCore.Metadata.Readers;
+using VideoToolsCore.Metadata.Writers;
 using VideoToolsCore.Metadata.Models;
 
 namespace VideoToolsCore.Metadata.Services;
 
-public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadataProvider> metadataProviders)
+public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadataReader> metadataReaders, IEnumerable<IMetadataWriter> metadataWriters)
 {
-    private readonly IMetadataProvider? _ffmpegHelper = metadataProviders.FirstOrDefault(h => h.GetType() == typeof(FFMpegMetadataProvider));
-    private readonly IMetadataProvider _shellHelper = metadataProviders.First(h => h.GetType() == typeof(ShellMetadataProvider));
     private readonly ILogger<MetadataHelper> _logger = logger;
 
-    // Combines metadata obtained through ffmpeg and shell (giving priority to the former).
+    private readonly List<IMetadataReader> _availableReaders = 
+        metadataReaders
+            .Where(r => r is not null)
+            .OrderBy(r => r.Priority)
+            .ToList();
+    private readonly List<IMetadataWriter> _availableWriters = 
+        metadataWriters
+            .Where(w => w is not null)
+            .OrderBy(w => w.Priority)            
+            .ToList();
+
+
+    // Combines metadata obtained through each available metadata reader
     public async Task<VideoMetadata?> GetMetadataAsync(VideoFileWindows videoFile)
     {
-        VideoMetadata? metadataFromFFMpeg = null;
-        if (_ffmpegHelper is not null)
+        var readerIndex = 0;
+        VideoMetadata? metadataCollected = null;
+        while (readerIndex < _availableReaders.Count && (metadataCollected is null || metadataCollected.IsIncomplete()))
         {
+            var reader = _availableReaders[readerIndex];
             try
             {
-                metadataFromFFMpeg = await _ffmpegHelper.GetMetadataAsync(videoFile);
+                _logger.LogDebug("Attempting metadata read using {readerType} for {filePath}", reader.GetType().Name, videoFile.Path);
+                var thisReaderMetadata = await reader.GetMetadataAsync(videoFile);
+                metadataCollected = metadataCollected?.FillMissingFrom(thisReaderMetadata) ?? thisReaderMetadata;
             }
             catch (Exception e)
             {
-                _logger.LogError("Error with ffprobe on file {filePath}: {errMessage}", videoFile.Path, e.Message);
+                _logger.LogError("Error reading metadata for file {filePath}: {errMessage}", videoFile.Path, e.Message);
+            }
+            finally
+            {
+                readerIndex++;
             }
         }
 
-        // Use MicrosoftAPICodePack to get metadata from Windows Shell.
-        // We're only doing this on videos we previously ran ffmpeg against.
-        VideoMetadata? metadataFromShell = null;
-        if (metadataFromFFMpeg is null || metadataFromFFMpeg.IsIncomplete())
-        {
-            metadataFromShell = await _shellHelper.GetMetadataAsync(videoFile);
-        }
-
-        // if the ffmpeg thing is not null, merge in shell metadata
-        // if it is null, return the shell metadata.
-        return metadataFromFFMpeg?.FillMissingFrom(metadataFromShell) ?? metadataFromShell;
+        return metadataCollected;
     }
 
-    // updates video file metadata using shell tool rather than ffmpeg. The latter cannot change file in-place.
+    // Tries to write all metadata provided in the VideoMetadata argument to the video file using available writers
     public async Task WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)
     {
-        // TODO: there's a problem here with updating the media create date using the shell library:
-        // This will update the "media created" shell property which is not reflected in any exif data or any 
-        // other metadata that ffmpeg can read. So, if the file already has an encoded date that ffmpeg can read,
-        // that will take precedence when scraping the metadata for the file 
-        // assuming FfmpegMetadataProvider is a registered service for the app.
-        await _shellHelper.WriteMetadataAsync(videoFile, metadata);
+        // while metadata has non-null properties and there are still some writers to try
+        var writerIndex = 0;
+        while (writerIndex < _availableWriters.Count && metadata.HasAnyWritableValues())
+        {
+            var writer = _availableWriters[writerIndex];
+            if (writer.CanWriteAny(metadata))
+            {
+                _logger.LogDebug("Attempting metadata write using {writerType} for {filePath}", writer.GetType().Name, videoFile.Path);
+                var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
+                foreach (var prop in writtenProperties)
+                {
+                    _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
+                    // null out the property just written
+                    metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
+                }
+            }
+            writerIndex++;
+        }
     }
 
     // writes to a database entity, not to the filesystem nor Google Photos.

@@ -6,8 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using VideoToolsCore.DataAccess;
 using VideoToolsCore.Utilities;
-using VideoToolsCore.Metadata.Providers;
+using VideoToolsCore.Metadata.Readers;
 using VideoToolsCore.Metadata.Services;
+using VideoToolsCore.Metadata.Writers;
 
 namespace VideoToolsCore.Services;
 
@@ -53,12 +54,21 @@ public class HostBuilder
             services.AddSingleton<BaseSettings>(settings);
             services.AddSingleton(settings);
 
-            services.AddSingleton<IMetadataProvider, ShellMetadataProvider>();
+
+            // Metadata readers
+            services.AddSingleton<IMetadataReader>(sp => new ShellMetadataReader { Priority = 1 });
             if (settings is IProvidesFFMpegPath settingsWithFFMpegPath && !string.IsNullOrEmpty(settingsWithFFMpegPath.FFMpegPath))
             {
-                services.AddSingleton<IMetadataProvider, FFMpegMetadataProvider>()
-                    .AddSingleton(settingsWithFFMpegPath);
+                // sets the base path for ffmpeg binaries
+                FFMpegInitializer.Initialize(settingsWithFFMpegPath);
+
+                services.AddSingleton<IMetadataReader>(sp => new FFMpegMetadataReader { Priority = 2 });
             }
+
+            // Metadata writers
+            services.AddSingleton<IMetadataWriter>(sp => new ShellMetadataWriter { Priority = 1 });
+            // TODO Add taglib or something? As last resort add ffmpeg even though it has to copy the file.
+
             services.AddSingleton<MetadataHelper>();
             
             if (settings is IProvidesDbFilePath dbFilePath)

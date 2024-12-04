@@ -7,12 +7,9 @@ public interface IProvidesFFMpegPath
     string? FFMpegPath { get; }
 }
 
-public abstract class FFMpegBase
+internal static class FFMpegInitializer
 {
-    // Allow up to `n` concurrent invocations of ffprobe or ffmpeg executables
-    protected static readonly SemaphoreSlim s_semaphore = new(Math.Max(Environment.ProcessorCount - 1, 1));
-
-    protected FFMpegBase(IProvidesFFMpegPath settings)
+    internal static void Initialize(IProvidesFFMpegPath settings)
     {    
         string? ffmpegPath = settings.FFMpegPath;
         if (string.IsNullOrEmpty(ffmpegPath))
