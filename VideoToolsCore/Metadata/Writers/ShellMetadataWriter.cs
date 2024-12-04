@@ -13,6 +13,7 @@ public class ShellMetadataWriter : MetadataWriterBase
         "Description"
         // technically this writer is also capable of setting the CreatedDate, but this sets
         // the file's "Media Created" date which is not anything that ffprobe or exiftool can read.
+        //, "CreatedDate"
     ];
     
     public override async Task<List<string>> WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)

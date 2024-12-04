@@ -20,6 +20,7 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
     public async Task CopyMetadataAsync(string sourceDir, string propToCopy)
     {
         sourceDir = sourceDir.Replace('/', Path.DirectorySeparatorChar);
+        sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar); // remove trailing slash if present. DB query will add its own
 
         // validate the metadata property to copy can be mapped to a database column
         var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy) ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
@@ -58,7 +59,7 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
             // load existing source and destination values from the database
             var googleValue = googleVideo.GetType().GetProperty(dbColumnName)?.GetValue(googleVideo)?.ToString();
             var localValue = localVideo.GetType().GetProperty(dbColumnName)?.GetValue(localVideo)?.ToString();
-            _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Local video (prop current set to \"{localValue}\")"
+            _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Local video (prop in database is currently set to \"{localValue}\")"
                 , localVideo.Path, propToCopy, googleValue, localValue);
 
 

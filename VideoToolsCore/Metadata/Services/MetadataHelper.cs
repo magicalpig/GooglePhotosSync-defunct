@@ -68,6 +68,11 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
                     metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
                 }
             }
+            else
+            {
+                _logger.LogDebug("Writer type {writerType} cannot write any of the metadata properties provided", writer.GetType().Name);
+            }
+
             writerIndex++;
         }
     }

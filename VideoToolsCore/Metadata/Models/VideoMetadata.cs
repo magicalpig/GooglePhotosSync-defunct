@@ -101,29 +101,24 @@ public record VideoMetadata
         return !DurationMs.HasValue || DurationMs <= 0 || string.IsNullOrEmpty(Codec) || string.Equals(Codec, UNKNOWN_CODEC) || CreatedDate is null || string.IsNullOrEmpty(Description);
     }
 
-    // This pertains to passing around a metadata object into metadata writers
+    // This pertains to passing around a metadata object into metadata writers.
     // It signifies that there are still some values in the object that can be written to the file.
     public bool HasAnyWritableValues()
     {
-        foreach (var prop in GetType().GetProperties())
-        {
-            var value = prop.GetValue(this);
-            if (IsPropertyWritable(prop) && value != null && !(prop.Name == "Codec" && value.ToString() == UNKNOWN_CODEC))
-            {
-                return true;
-            }           
-        }
-        return false;
-    }
-
-    public List<string> GetWritableProperties()
+        return GetType().GetProperties().Any(HasWritableValueForProperty);        
+    }    
+    public bool HasWritableValueForProperty(string propertyName)
     {
-        return GetType().GetProperties()
-            .Where(p => IsPropertyWritable(p))
-            .Select(p => p.Name)
-            .ToList();
+        var property = GetType().GetProperty(propertyName) ?? throw new ArgumentException($"No property found with name {propertyName}");
+        return HasWritableValueForProperty(property);        
+    }
+    public bool HasWritableValueForProperty(PropertyInfo property)
+    {
+        var value = property.GetValue(this);
+        return IsPropertyWritable(property) && value != null && !(property.Name == "Codec" && value.ToString() == UNKNOWN_CODEC);
     }
 
+    // Regardless of whethe the property has a value, is the property writable?
     public static bool IsPropertyWritable(string propertyName)
     {
         var property = typeof(VideoMetadata).GetProperty(propertyName);
