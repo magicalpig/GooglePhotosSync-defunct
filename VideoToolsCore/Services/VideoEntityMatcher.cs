@@ -19,7 +19,7 @@ public class VideoEntityMatcher(VideoContext dbContext)
                 Math.Abs((long)(w.DurationMs - g.DurationMs)) < 2_000);
     }
 
-    public async Task<VideoFileGoogle?> FindMatchingGoogleVideoAsync(VideoFileWindows w, IQueryable<VideoFileGoogle> googleVideos)
+    public async Task<VideoFileGoogle?> FindMatchingGoogleVideoAsync(VideoFileWindows w)
     {
         return await _dbContext.GoogleVideos
             .FirstOrDefaultAsync(g => 

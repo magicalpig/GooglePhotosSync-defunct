@@ -55,18 +55,17 @@ public class HostBuilder
             services.AddSingleton(settings);
 
 
-            // Metadata readers
+            // Metadata readers and writers
             services.AddSingleton<IMetadataReader>(sp => new ShellMetadataReader { Priority = 1 });
+            services.AddSingleton<IMetadataWriter>(sp => new ShellMetadataWriter { Priority = 1 });
             if (settings is IProvidesFFMpegPath settingsWithFFMpegPath && !string.IsNullOrEmpty(settingsWithFFMpegPath.FFMpegPath))
             {
                 // sets the base path for ffmpeg binaries
                 FFMpegInitializer.Initialize(settingsWithFFMpegPath);
 
                 services.AddSingleton<IMetadataReader>(sp => new FFMpegMetadataReader { Priority = 2 });
+                services.AddSingleton<IMetadataWriter>(sp => new FFMpegMetadataWriter { Priority = 2 });
             }
-
-            // Metadata writers
-            services.AddSingleton<IMetadataWriter>(sp => new ShellMetadataWriter { Priority = 1 });
             // TODO Add taglib or something? As last resort add ffmpeg even though it has to copy the file.
 
             services.AddSingleton<MetadataHelper>();

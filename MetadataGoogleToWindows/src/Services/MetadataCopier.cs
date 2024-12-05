@@ -17,28 +17,23 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
     private readonly ILogger<MetadataCopier> _logger = logger;
     private readonly IDualCurrentUserService _currentUserService = currentUserService;
 
-    public async Task CopyMetadataAsync(string sourceDir, string propToCopy)
+    public async Task CopyMetadataAsync(string sourceDir, List<string> propsToCopy)
     {
         sourceDir = sourceDir.Replace('/', Path.DirectorySeparatorChar);
         sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar); // remove trailing slash if present. DB query will add its own
 
-        // validate the metadata property to copy can be mapped to a database column
-        var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy) ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
 
         var googleUser = _currentUserService.GoogleCurrentUserService?.UserId;
         var localUser = _currentUserService.LocalCurrentUserService?.UserId;
-        _logger.LogInformation("Copying metadata from Google videos belonging to {gUser} to Windows videos belonging to {wUser}. Path is {sourceDir} and property is {prop}", googleUser, localUser, sourceDir, propToCopy);
+        _logger.LogInformation("Copying metadata from Google videos belonging to {gUser} to Windows videos belonging to {wUser}.\n Path is {sourceDir}\nProperties to copy are {props}", googleUser, localUser, sourceDir, propsToCopy);
 
-        // Find all google videos that have the property to copy defined
-        var googleVideosQuery = _db.Set<VideoFileGoogle>()
-          .Where(v => EF.Property<string>(v, propToCopy) != null && EF.Property<string>(v, propToCopy) != "");
 
         // Find all windows videos that exists in or under the source directory
         var localVideos = _db.Set<VideoFileWindows>()
             .Where(v => EF.Functions.Collate(v.Folder, "NOCASE") == sourceDir || EF.Functions.Collate(v.Folder, "NOCASE").StartsWith(sourceDir + Path.DirectorySeparatorChar))
             .ToList();
 
-
+        List<Task> tasks = [];
         foreach (var localVideo in localVideos)
         {
             // ensure video file still exists
@@ -49,39 +44,55 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
             }
 
             // find the google video that best matches the windows video
-            var googleVideo = await _videoMatcher.FindMatchingGoogleVideoAsync(localVideo, googleVideosQuery);
+            var googleVideo = await _videoMatcher.FindMatchingGoogleVideoAsync(localVideo);
             if (googleVideo == null)
             {
                 _logger.LogWarning("No Google video found for Windows video {localVideo}", localVideo.Path);
                 continue;
             }
 
-            // load existing source and destination values from the database
-            var googleValue = googleVideo.GetType().GetProperty(dbColumnName)?.GetValue(googleVideo)?.ToString();
-            var localValue = localVideo.GetType().GetProperty(dbColumnName)?.GetValue(localVideo)?.ToString();
-            _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Local video (prop in database is currently set to \"{localValue}\")"
-                , localVideo.Path, propToCopy, googleValue, localValue);
-
-
-            // Create a VideoMetadata object that has the property to be changed defined with the new value.
+            // Create a VideoMetadata with the properties to be changed set to the new values.
             var metadata = new VideoMetadata();
-            var metadataProperty = metadata.GetType().GetProperty(propToCopy);
-            if (metadataProperty != null)
+            foreach (var propToCopy in propsToCopy)
             {
-                if (metadataProperty.PropertyType == typeof(DateTime?) && DateTime.TryParse(googleValue, out var googleDateTimeValue))
+                // validate the metadata property to copy can be mapped to a database column
+                var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy) ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
+
+                var googleValue = googleVideo.GetType().GetProperty(dbColumnName)?.GetValue(googleVideo)?.ToString();
+                var localValue = localVideo.GetType().GetProperty(dbColumnName)?.GetValue(localVideo)?.ToString();
+                if (string.IsNullOrWhiteSpace(googleValue))
                 {
-                    metadataProperty.SetValue(metadata, googleDateTimeValue);
+                    _logger.LogWarning("{name}: Google video does not have a value for {prop} property", localVideo.Path, propToCopy);
+                    continue;
                 }
-                else
+                else if (googleValue == localValue)
                 {
-                    metadataProperty.SetValue(metadata, googleValue);
+                    _logger.LogInformation("{name}: Google video and Local video already have the same value for {prop} property", localVideo.Path, propToCopy);
+                    continue;
+                }
+                
+                _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Local video (prop in database is currently set to \"{localValue}\")"
+                    , localVideo.Path, propToCopy, googleValue, localValue);
+
+
+                var metadataProperty = metadata.GetType().GetProperty(propToCopy);
+                if (metadataProperty != null)
+                {
+                    if (metadataProperty.PropertyType == typeof(DateTime?) && DateTime.TryParse(googleValue, out var googleDateTimeValue))
+                    {
+                        metadataProperty.SetValue(metadata, googleDateTimeValue);
+                    }
+                    else
+                    {
+                        metadataProperty.SetValue(metadata, googleValue);
+                    }
                 }
             }
-            
-            await _metadataHelper.WriteMetadataAsync(localVideo, metadata);
+
+            tasks.Add(_metadataHelper.WriteMetadataAsync(localVideo, metadata));
         }
 
 
-        await Task.CompletedTask;
+        await Task.WhenAll(tasks);
     }
 }

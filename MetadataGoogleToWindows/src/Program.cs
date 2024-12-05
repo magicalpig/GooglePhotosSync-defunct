@@ -34,9 +34,9 @@ class Program
         try
         {
             var settings = host.Services.GetRequiredService<Settings>();
-            var sourceDir = settings.GetRequiredSetting("SourceDir");
-            var propToCopy = settings.GetRequiredSetting("MetadataProperty");
-            await metadataCopier.CopyMetadataAsync(sourceDir, propToCopy);
+            var sourceDir = settings.GetRequiredSetting<string>("SourceDir");
+            var propsToCopy = settings.GetRequiredSetting<List<string>>("MetadataProperties");
+            await metadataCopier.CopyMetadataAsync(sourceDir, propsToCopy);
         }
         catch (Exception ex)
         {

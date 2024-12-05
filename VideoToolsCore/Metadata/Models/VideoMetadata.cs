@@ -1,6 +1,5 @@
 using System.Reflection;
 using FFMpegCore;
-using Microsoft.AspNetCore.Authorization;
 
 namespace VideoToolsCore.Metadata.Models;
 
@@ -16,8 +15,8 @@ public class DbColumnAttribute(string columnName) : Attribute
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
 public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite) : Attribute
 {
-    public string FieldToWrite { get; } = fieldToWrite;
     public string WriterType { get; } = writerType;
+    public string FieldToWrite { get; } = fieldToWrite;    
 }
 
 // defines the properties of a video file that can be scraped and in some cases written
@@ -37,11 +36,13 @@ public record VideoMetadata
 
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Media.DateEncoded")]
+    [MetadataFieldForWriting("FFMpegMetadataWriter", "creation_time")]
     [DbColumn("CreatedDate")]
     public DateTime? CreatedDate { get; set; }
 
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Title")]
+    [MetadataFieldForWriting("FFMpegMetadataWriter", "title")]
     [DbColumn("Description")]
     public string? Description { get; set; }
 

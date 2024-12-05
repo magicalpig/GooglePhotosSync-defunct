@@ -10,15 +10,15 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
 {
     private readonly ILogger<MetadataHelper> _logger = logger;
 
-    private readonly List<IMetadataReader> _availableReaders = 
+    private readonly List<IMetadataReader> _availableReaders =
         metadataReaders
             .Where(r => r is not null)
             .OrderBy(r => r.Priority)
             .ToList();
-    private readonly List<IMetadataWriter> _availableWriters = 
+    private readonly List<IMetadataWriter> _availableWriters =
         metadataWriters
             .Where(w => w is not null)
-            .OrderBy(w => w.Priority)            
+            .OrderBy(w => w.Priority)
             .ToList();
 
 
@@ -59,7 +59,7 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             var writer = _availableWriters[writerIndex];
             if (writer.CanWriteAny(metadata))
             {
-                _logger.LogDebug("Attempting metadata write using {writerType} for {filePath}", writer.GetType().Name, videoFile.Path);
+                _logger.LogDebug("Attempting metadata write using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
                 var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
                 foreach (var prop in writtenProperties)
                 {
@@ -67,10 +67,14 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
                     // null out the property just written
                     metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
                 }
+                if (writtenProperties.Count == 0)
+                {
+                    _logger.LogWarning("No metadata properties written by <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
+                }
             }
             else
             {
-                _logger.LogDebug("Writer type {writerType} cannot write any of the metadata properties provided", writer.GetType().Name);
+                _logger.LogDebug("Writer type <{writerType}> cannot write any of the metadata properties provided", writer.GetType().Name);
             }
 
             writerIndex++;
