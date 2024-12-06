@@ -50,8 +50,9 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
     }
 
     // Tries to write all metadata provided in the VideoMetadata argument to the video file using available writers
-    public async Task WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)
+    public async Task<bool> WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)
     {
+        var somethingChangedSuccessfully = false;
         // while metadata has non-null properties and there are still some writers to try
         var writerIndex = 0;
         while (writerIndex < _availableWriters.Count && metadata.HasAnyWritableValues())
@@ -61,15 +62,21 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             {
                 _logger.LogDebug("Attempting metadata write using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
                 var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
-                foreach (var prop in writtenProperties)
-                {
-                    _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
-                    // null out the property just written
-                    metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
-                }
+                
                 if (writtenProperties.Count == 0)
                 {
                     _logger.LogWarning("No metadata properties written by <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
+                }
+                else
+                {
+                    somethingChangedSuccessfully = true;
+                    // null out the written property
+                    foreach (var prop in writtenProperties)
+                    {
+                        _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
+                        // null out the property just written
+                        metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
+                    }                    
                 }
             }
             else
@@ -79,16 +86,8 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
 
             writerIndex++;
         }
-    }
 
-    // writes to a database entity, not to the filesystem nor Google Photos.
-    public async Task GetAndAttachMetadataAsync(VideoFileWindows videoFile)
-    {
-        VideoMetadata? metadata = await GetMetadataAsync(videoFile);
-        if (metadata is not null)
-        {
-            videoFile.AttachMetadata(metadata);
-        }
+        return somethingChangedSuccessfully;
     }
 
     public static bool IsMetadataCompleteForWindows(VideoMetadata? metadata)

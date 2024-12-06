@@ -9,9 +9,9 @@ using VideoToolsCore.User.Services;
 
 namespace MetadataGoogleToWindows.Services;
 
-public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHelper, VideoEntityMatcher videoMatcher, ILogger<MetadataCopier> logger, IDualCurrentUserService currentUserService)
+public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHelper metadataHelper, VideoEntityMatcher videoMatcher, ILogger<MetadataCopier> logger, IDualCurrentUserService currentUserService)
 {
-    private readonly VideoContext _db = videoContext;
+    private readonly VideoContextFactory _videoContextFactory = videoContextFactory;
     private readonly MetadataHelper _metadataHelper = metadataHelper;
     private readonly VideoEntityMatcher _videoMatcher = videoMatcher;
     private readonly ILogger<MetadataCopier> _logger = logger;
@@ -25,11 +25,12 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
 
         var googleUser = _currentUserService.GoogleCurrentUserService?.UserId;
         var localUser = _currentUserService.LocalCurrentUserService?.UserId;
-        _logger.LogInformation("Copying metadata from Google videos belonging to {gUser} to Windows videos belonging to {wUser}.\n Path is {sourceDir}\nProperties to copy are {props}", googleUser, localUser, sourceDir, propsToCopy);
+        _logger.LogInformation("Copying metadata from Google videos belonging to {gUser} to Windows videos belonging to {wUser}.\n Path is {sourceDir}\nProperties to copy are {props}",
+            googleUser, localUser, sourceDir, propsToCopy);
 
 
         // Find all windows videos that exists in or under the source directory
-        var localVideos = _db.Set<VideoFileWindows>()
+        var localVideos = _videoContextFactory.CreateUserScopedVideoContext().Set<VideoFileWindows>()
             .Where(v => EF.Functions.Collate(v.Folder, "NOCASE") == sourceDir || EF.Functions.Collate(v.Folder, "NOCASE").StartsWith(sourceDir + Path.DirectorySeparatorChar))
             .ToList();
 
@@ -51,12 +52,19 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
                 continue;
             }
 
+            var dbIsOutdated = localVideo.LastMetadataScanTimestamp < File.GetLastWriteTime(localVideo.Path);
+            if (dbIsOutdated)
+            {
+                _logger.LogInformation("{name}: File has been updated since last metadata scan. Will copy all properties from Google video to Windows video.", localVideo.Path);                
+            }
+
             // Create a VideoMetadata with the properties to be changed set to the new values.
             var metadata = new VideoMetadata();
             foreach (var propToCopy in propsToCopy)
             {
                 // validate the metadata property to copy can be mapped to a database column
-                var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy) ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
+                var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy)
+                    ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
 
                 var googleValue = googleVideo.GetType().GetProperty(dbColumnName)?.GetValue(googleVideo)?.ToString();
                 var localValue = localVideo.GetType().GetProperty(dbColumnName)?.GetValue(localVideo)?.ToString();
@@ -65,13 +73,17 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
                     _logger.LogWarning("{name}: Google video does not have a value for {prop} property", localVideo.Path, propToCopy);
                     continue;
                 }
+                else if (dbIsOutdated)
+                {
+                    
+                }
                 else if (googleValue == localValue)
                 {
-                    _logger.LogInformation("{name}: Google video and Local video already have the same value for {prop} property", localVideo.Path, propToCopy);
+                    _logger.LogInformation("{name}: Google video and Windows video already have the same value for {prop} property", localVideo.Path, propToCopy);
                     continue;
                 }
-                
-                _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Local video (prop in database is currently set to \"{localValue}\")"
+
+                _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Windows video (prop in database is currently set to \"{localValue}\")"
                     , localVideo.Path, propToCopy, googleValue, localValue);
 
 
@@ -89,10 +101,28 @@ public class MetadataCopier(VideoContext videoContext, MetadataHelper metadataHe
                 }
             }
 
-            tasks.Add(_metadataHelper.WriteMetadataAsync(localVideo, metadata));
+            tasks.Add(Task.Run(async () =>
+            {
+                // write metadata and if any changes were successful, update the local video
+                // using a separate context to avoid threading issues
+                var anySuccessfulChanges = await _metadataHelper.WriteMetadataAsync(localVideo, metadata);
+                if (anySuccessfulChanges)
+                {
+                    var metadataRefreshed = await _metadataHelper.GetMetadataAsync(localVideo);
+                    if (metadataRefreshed != null)
+                    {
+                        using var db = _videoContextFactory.CreateUserScopedVideoContext();
+                        db.Attach(localVideo);
+                        _logger.LogDebug("Updating database for {localVideo}.", localVideo.Path);
+                        localVideo.AttachMetadata(metadataRefreshed);
+                        await db.SaveChangesAsync();
+                    }
+                }
+            }));
         }
 
 
         await Task.WhenAll(tasks);
+
     }
 }

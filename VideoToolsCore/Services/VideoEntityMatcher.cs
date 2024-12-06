@@ -5,13 +5,13 @@ using VideoToolsCore.DataAccess.Models;
 namespace VideoToolsCore.Services;
 
 // concerns itself with finding matches between database records
-public class VideoEntityMatcher(VideoContext dbContext)
+public class VideoEntityMatcher(VideoContextFactory videoContextFactory)
 {
-    private readonly VideoContext _dbContext = dbContext;
+    private readonly VideoContextFactory _videoContextFactory = videoContextFactory;
     
     public async Task<VideoFileWindows?> FindMatchingWindowsVideoAsync(VideoFileGoogle g)
     {
-        return await _dbContext.WindowsVideos
+        return await _videoContextFactory.CreateUserScopedVideoContext().WindowsVideos
             .FirstOrDefaultAsync(w => 
                 EF.Functions.Collate(w.Name, "NOCASE") == g.Name && 
                 w.DurationMs.HasValue && 
@@ -21,7 +21,7 @@ public class VideoEntityMatcher(VideoContext dbContext)
 
     public async Task<VideoFileGoogle?> FindMatchingGoogleVideoAsync(VideoFileWindows w)
     {
-        return await _dbContext.GoogleVideos
+        return await _videoContextFactory.CreateUserScopedVideoContext().GoogleVideos
             .FirstOrDefaultAsync(g => 
                 EF.Functions.Collate(w.Name, "NOCASE") == g.Name && 
                 w.DurationMs.HasValue && 

@@ -170,8 +170,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             pageLimit = null;
 
 
-        IAsyncEnumerable<MediaItem> mediaItems =
-            _googleService.GetMediaItemsByFilterAsync(_videoOnlyFilter, pageLimit ?? int.MaxValue);
+        IAsyncEnumerable<MediaItem> mediaItems = _googleService.GetMediaItemsByFilterAsync(_videoOnlyFilter, pageLimit ?? int.MaxValue);
         List<string> idsScraped = await ProcessMediaItems(mediaItems);
         _db.SaveChanges();
 

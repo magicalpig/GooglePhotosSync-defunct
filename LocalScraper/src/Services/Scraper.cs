@@ -90,7 +90,14 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
             if (getMetadata)
             {
-                tasks.Add(_metadataScraper.GetAndAttachMetadataAsync(videoFile));
+                tasks.Add(Task.Run(async () =>
+                {
+                    var metadata = await _metadataScraper.GetMetadataAsync(videoFile);
+                    if (metadata is not null)
+                    {
+                        videoFile.AttachMetadata(metadata);
+                    }
+                }));
             }
         }
         await Task.WhenAll(tasks);

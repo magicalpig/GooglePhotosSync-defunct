@@ -27,12 +27,14 @@ public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider?
             throw new InvalidOperationException(errMsg);
         }
 
-        return new VideoContext(GetConnectionString(), currentUserService);
+        return CreateVideoContext(currentUserService);
     }
 
-    internal VideoContext CreateVideoContext()
+    internal VideoContext CreateVideoContext(IDualCurrentUserService? currentUserService = null)
     {
-        return new VideoContext(GetConnectionString(), currentUserService: null);
+        return new VideoContext(GetConnectionString(), currentUserService);
+        //TODO handle _settings.FreshDatabase here instead of in the individual projects
+        //TODO make FreshDatabase clear out albums and album memberships as well as the videos.
     }
 
     private string GetConnectionString()

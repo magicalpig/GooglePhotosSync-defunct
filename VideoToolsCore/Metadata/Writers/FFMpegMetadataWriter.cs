@@ -63,8 +63,7 @@ public class FFMpegMetadataWriter() : MetadataWriterBase
             
             if (success)
             {
-                //TODO: Replace the original file with the new one
-                //File.Replace(tmpOutputFileName, videoFile.Path, null);
+                File.Replace(tmpOutputFileName, videoFile.Path, null);
             }
             else
             {

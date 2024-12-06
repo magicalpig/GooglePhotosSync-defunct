@@ -21,13 +21,7 @@ class Program
                 .AddSingleton<VideoEntityMatcher>()
                 .AddSingleton<ILocalCurrentUserService, LocalComputerCurrentUserService>()
                 .AddSingleton<IGoogleCurrentUserService, SettingsGoogleCurrentUserService>()
-                .AddSingleton<IDualCurrentUserService, DualCurrentUserService>()
-                // puts a User-Scoped Video Context into DI container
-                .AddSingleton<VideoContext>(sp => 
-                {
-                    var factory = sp.GetRequiredService<VideoContextFactory>();
-                    return factory.CreateUserScopedVideoContext();
-                });
+                .AddSingleton<IDualCurrentUserService, DualCurrentUserService>();         
         });
 
         var metadataCopier = host.Services.GetRequiredService<MetadataCopier>();

@@ -26,6 +26,8 @@ var app =  MyHostBuilder.CreateWebHost<Settings>(services =>
                           .AllowAnyMethod();
                 });
         })
+        // my own extension method that registers the db context factory, 
+        // a current user service, and of course the WebApiVideoService
         .AddWebApiVideoService()
         // give controllers and services access the HttpContext
         // (middleware already has access)
