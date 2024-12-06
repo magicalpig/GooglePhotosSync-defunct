@@ -27,7 +27,7 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
     {
         var readerIndex = 0;
         VideoMetadata? metadataCollected = null;
-        while (readerIndex < _availableReaders.Count && (metadataCollected is null || metadataCollected.IsIncomplete()))
+        while (readerIndex < _availableReaders.Count && !MetadataHelper.IsMetadataCompleteForWindows(metadataCollected))
         {
             var reader = _availableReaders[readerIndex];
             try
@@ -89,5 +89,11 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
         {
             videoFile.AttachMetadata(metadata);
         }
+    }
+
+    public static bool IsMetadataCompleteForWindows(VideoMetadata? metadata)
+    {
+        return metadata is not null && !metadata.IsIncomplete() 
+            && !string.IsNullOrEmpty(metadata.Codec) && !string.Equals(metadata.Codec, VideoMetadata.UNKNOWN_CODEC);
     }
 }

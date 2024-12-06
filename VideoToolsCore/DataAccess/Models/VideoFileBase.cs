@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using VideoToolsCore.Attributes;
 using VideoToolsCore.Metadata.Models;
 
@@ -7,50 +8,53 @@ public abstract class VideoFileBase : OwnableEntityBase
 {
     [FromGoogleRestApi]
     public string? Name { get; set; } = String.Empty;
-    [FromGoogleRestApi]
-    public string? Description { get; set; }
     public long? Size { get; set; }
-
     public DateTime? LastMetadataScanTimestamp { get; set; }
 
-    // this does not get set directly. It gets set when you set the milliseconds version
-    public TimeSpan? Duration { get; private set; }
-    private long? _durationMs;
+    // Video files contain a VideoMetadata object
+    // The VideoMetadata object is not itself stored in the db, but rather its properties
+    // are stored alongside the VideoFileBase properties
+    [NotMapped]
+    protected VideoMetadata _metadata = new();
+
+    [FromGoogleRestApi]
+    public string? Description
+    {
+        get => _metadata.Description;
+        set => _metadata.Description = value;
+    }
+
+
+    // The getter derives the value from the DurationMs property
+    // The setter sets the DurationMs property to ensure Duration and DurationMs are in sync
+    public TimeSpan? Duration
+    {
+        get => _metadata.DurationMs.HasValue ?
+                TimeSpan.FromMilliseconds(_metadata.DurationMs.Value - _metadata.DurationMs.Value % 1000)
+                : null;
+        set => _metadata.DurationMs = (long?)(value?.TotalMilliseconds);
+    }
+
     public long? DurationMs
     {
-        get { return _durationMs; }
-        set
-        {
+        get => _metadata.DurationMs;
+        set => _metadata.DurationMs = value;
+        /*{
             // setting DurationMs directly would result in infinite recursion
             if (value.HasValue)
             {
                 long nonNullValue = value.Value;
-                _durationMs = nonNullValue;
-                Duration = TimeSpan.FromMilliseconds(nonNullValue - nonNullValue % 1000);
+                _metadata.DurationMs = nonNullValue;
             }
-        }
+        }*/
     }
 
-    private DateTime? _createdDate;
     [FromGoogleRestApi]
     public DateTime? CreatedDate
     {
-        get { return _createdDate; }
-        // setter has extra functionality to remove milliseconds from the date
-        set
-        {
-            if (value.HasValue)
-            {
-                DateTime d = value.Value;
-                // clear milliseconds off date stamp
-                d = new DateTime(d.Year, d.Month, d.Day, d.Hour, d.Minute, d.Second, 0, d.Kind);
-                _createdDate = d;
-            }
-            else
-                _createdDate = null;
-        }
+        get => _metadata.CreatedDate;
+        set => _metadata.CreatedDate = value;
     }
-
 
 
     public override bool Equals(object? obj)
@@ -73,23 +77,22 @@ public abstract class VideoFileBase : OwnableEntityBase
     protected void SyncTo(VideoFileBase other)
     {
         Name = other.Name;
-        CreatedDate = other.CreatedDate;
-        Description = other.Description;
-        DurationMs = other.DurationMs;
         Size = other.Size;
         LastMetadataScanTimestamp = other.LastMetadataScanTimestamp;
-    }
+
+        _metadata.Description = other._metadata.Description;
+        _metadata.DurationMs = other._metadata.DurationMs;
+        _metadata.CreatedDate = other._metadata.CreatedDate;
+    }    
 
     public virtual void AttachMetadata(VideoMetadata m)
     {
-        DurationMs = m.DurationMs;
-        CreatedDate = m.CreatedDate;
-        Description = m.Description;
+        _metadata = m;
         LastMetadataScanTimestamp = DateTime.Now;
     }
 
     public override int GetHashCode()
     {
         return HashCode.Combine(Name, CreatedDate, Description, Duration, Size);
-    }    
+    }
 }

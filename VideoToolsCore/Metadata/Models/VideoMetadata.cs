@@ -16,29 +16,48 @@ public class DbColumnAttribute(string columnName) : Attribute
 public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite) : Attribute
 {
     public string WriterType { get; } = writerType;
-    public string FieldToWrite { get; } = fieldToWrite;    
+    public string FieldToWrite { get; } = fieldToWrite;
 }
 
 // defines the properties of a video file that can be scraped and in some cases written
 // Summary of the properties:
-//  Codec: Non-nullable string, defaults to "unknown"
+//  Codec: Non-nullable string, defaults to "unknown". Not used for Google videos
 //  CreatedDate: Nullable DateTime
 //  Description: Nullable string
 //  DurationMs: Nullable long value
 
 public record VideoMetadata
 {
-    public static readonly string UNKNOWN_CODEC = "unknown";
-
     public long? DurationMs { get; set; }
 
+    public static readonly string UNKNOWN_CODEC = "unknown";
     public string Codec { get; set; } = UNKNOWN_CODEC;
-
+    
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Media.DateEncoded")]
     [MetadataFieldForWriting("FFMpegMetadataWriter", "creation_time")]
     [DbColumn("CreatedDate")]
-    public DateTime? CreatedDate { get; set; }
+    public DateTime? CreatedDate
+    {
+        get => _createdDate;
+        // setter has extra functionality to remove milliseconds from the date
+        set
+        {
+            if (value.HasValue)
+            {
+                DateTime d = value.Value;
+                // clear milliseconds off date stamp
+                d = new DateTime(d.Year, d.Month, d.Day, d.Hour, d.Minute, d.Second, 0, d.Kind);
+                _createdDate = d;
+            }
+            else
+            {
+                _createdDate = null;
+            }
+        }
+    }
+    private DateTime? _createdDate;
+
 
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Title")]
@@ -96,22 +115,23 @@ public record VideoMetadata
         return this;
     }
 
-    // this pertains to the question of whether it's worth trying to scrape additional metadata
+    // this pertains to the question of whether it's worth trying to scrape additional metadata.
+    // Notice it doesn't check for codec, because that's not a required field for Google videos.
     public bool IsIncomplete()
     {
-        return !DurationMs.HasValue || DurationMs <= 0 || string.IsNullOrEmpty(Codec) || string.Equals(Codec, UNKNOWN_CODEC) || CreatedDate is null || string.IsNullOrEmpty(Description);
+        return !DurationMs.HasValue || DurationMs <= 0 || CreatedDate is null || string.IsNullOrEmpty(Description);
     }
 
     // This pertains to passing around a metadata object into metadata writers.
     // It signifies that there are still some values in the object that can be written to the file.
     public bool HasAnyWritableValues()
     {
-        return GetType().GetProperties().Any(HasWritableValueForProperty);        
-    }    
+        return GetType().GetProperties().Any(HasWritableValueForProperty);
+    }
     public bool HasWritableValueForProperty(string propertyName)
     {
         var property = GetType().GetProperty(propertyName) ?? throw new ArgumentException($"No property found with name {propertyName}");
-        return HasWritableValueForProperty(property);        
+        return HasWritableValueForProperty(property);
     }
     public bool HasWritableValueForProperty(PropertyInfo property)
     {
@@ -144,6 +164,6 @@ public record VideoMetadata
                                 .Cast<MetadataFieldForWritingAttribute>()
                                 .FirstOrDefault(a => a.WriterType == writerType);
         return attribute?.FieldToWrite;
-  
+
     }
 }

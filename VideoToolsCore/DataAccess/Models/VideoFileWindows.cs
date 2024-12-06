@@ -8,11 +8,15 @@ public class VideoFileWindows : VideoFileBase
 {
     public string Path { get; set; } = String.Empty;
     public string Folder { get; set; } = String.Empty;
-    public string Codec { get; set; } = String.Empty;
+    public string Codec 
+    { 
+        get => _metadata.Codec;
+        set => _metadata.Codec = value; 
+    }
+
     public DateTime? LastModified { get; set; }
     internal string MachineName { get; set; } = String.Empty;
     internal string MachineId { get; set; } = String.Empty;
-
 
     public void SyncTo(VideoFileWindows other)
     {
@@ -41,9 +45,7 @@ public class VideoFileWindows : VideoFileBase
     // If this method returns true, you probably want to give another go at scraping the metadata.     
     public bool LacksStandardMetadata()
     {
-        return CreatedDate is null
-          || DurationMs is null || DurationMs <= 0
-          || Codec is null;
+        return _metadata.IsIncomplete() || Codec is null || Codec == VideoMetadata.UNKNOWN_CODEC;
     }
 
     // likely to used on an existing db record against one discovered during a filesystem scrape
@@ -55,11 +57,5 @@ public class VideoFileWindows : VideoFileBase
     public override int GetHashCode()
     {
         return HashCode.Combine(base.GetHashCode(), Path, Folder, Codec, LastModified);
-    }
-
-    public override void AttachMetadata(VideoMetadata m)
-    {
-        base.AttachMetadata(m);
-        Codec = m.Codec;
     }
 }
