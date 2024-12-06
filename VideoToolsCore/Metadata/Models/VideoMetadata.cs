@@ -6,11 +6,6 @@ namespace VideoToolsCore.Metadata.Models;
 [AttributeUsage(AttributeTargets.Property)]
 public class WritableMetadataAttribute : Attribute { }
 
-[AttributeUsage(AttributeTargets.Property)]
-public class DbColumnAttribute(string columnName) : Attribute
-{
-    public string ColumnName { get; } = columnName;
-}
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
 public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite) : Attribute
@@ -36,7 +31,6 @@ public record VideoMetadata
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Media.DateEncoded")]
     [MetadataFieldForWriting("FFMpegMetadataWriter", "creation_time")]
-    [DbColumn("CreatedDate")]
     public DateTime? CreatedDate
     {
         get => _createdDate;
@@ -62,7 +56,6 @@ public record VideoMetadata
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Title")]
     [MetadataFieldForWriting("FFMpegMetadataWriter", "title")]
-    [DbColumn("Description")]
     public string? Description { get; set; }
 
     public VideoMetadata() { }
@@ -139,7 +132,7 @@ public record VideoMetadata
         return IsPropertyWritable(property) && value != null && !(property.Name == "Codec" && value.ToString() == UNKNOWN_CODEC);
     }
 
-    // Regardless of whethe the property has a value, is the property writable?
+    // Regardless of whether the property has a value, is the property writable?
     public static bool IsPropertyWritable(string propertyName)
     {
         var property = typeof(VideoMetadata).GetProperty(propertyName);
@@ -149,14 +142,7 @@ public record VideoMetadata
     {
         return property.GetCustomAttributes(typeof(WritableMetadataAttribute), false).Length > 0;
     }
-
-    public static string? GetDbColumnForMetadataProperty(string propertyName)
-    {
-        var property = typeof(VideoMetadata).GetProperty(propertyName);
-        var dbColumnAttribute = property?.GetCustomAttributes(typeof(DbColumnAttribute), false).FirstOrDefault() as DbColumnAttribute;
-        return dbColumnAttribute?.ColumnName;
-    }
-
+    
     // for a given metadata writer type and a given VideoMetadata property, get the name of the field to write to
     public static string? GetMetadataWritableField(string writerType, PropertyInfo property)
     {

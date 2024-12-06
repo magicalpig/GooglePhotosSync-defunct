@@ -17,11 +17,6 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     private readonly IDualCurrentUserService _currentUserService = currentUserService;
     private readonly VideoContext _db = dbFactory.CreateUserScopedVideoContext();
 
-    private static readonly Filter _videoOnlyFilter = new()
-    {
-        mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] }
-    };
-
     public async Task ScrapeAlbums()
     {
         if (_settings.ScrapeGoogleAlbums is false)
@@ -42,7 +37,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 _logger.LogDebug("Album {title} already in database", existing.Title);
                 if (existing.Title != a.title || existing.ItemCount != a.mediaItemsCount)
                 {
-                    _logger.LogDebug("Updating album in database. New title {oldTitle}, old title {newTitle}. New item count {newItemCount}, old item count {oldItemCount}", 
+                    _logger.LogDebug("Updating album in database. New title {oldTitle}, old title {newTitle}. New item count {newItemCount}, old item count {oldItemCount}",
                         existing.Title, a.title, a.mediaItemsCount, existing.ItemCount);
                     existing.Title = a.title;
                     existing.ItemCount = a.mediaItemsCount;
@@ -79,7 +74,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
 
 
         // Now for the video-to-album membership
-        List<AlbumMembership> existingAlbumMemberships = await _db.AlbumMemberships.ToListAsync(); 
+        List<AlbumMembership> existingAlbumMemberships = await _db.AlbumMemberships.ToListAsync();
         IAsyncEnumerable<AlbumMembership> albumMemberships = ScrapeAlbumMemberships(albums.Select(a => a.id).Reverse());
 
         await foreach (var m in albumMemberships)
@@ -170,13 +165,13 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             pageLimit = null;
 
 
-        IAsyncEnumerable<MediaItem> mediaItems = _googleService.GetMediaItemsByFilterAsync(_videoOnlyFilter, pageLimit ?? int.MaxValue);
+        IAsyncEnumerable<MediaItem> mediaItems = _googleService.GetMediaItemsByFilterAsync(GetFilter(), pageLimit ?? int.MaxValue);
         List<string> idsScraped = await ProcessMediaItems(mediaItems);
         _db.SaveChanges();
 
         // Offer to delete records from database that were not found in this scraping
         // but only if full scrape (no page limit) was done
-        if (pageLimit is null)
+        if (pageLimit is null && !_settings.FavoritesOnly)
         {
             OfferDelete(idsScraped);
         }
@@ -261,5 +256,22 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             }
         }
         return newlyScrapedIds;
+    }
+
+    private Filter GetFilter()
+    {
+        featureFilter? ff = null;
+        if (_settings.FavoritesOnly)
+        {
+            ff = new() { includedFeatures = [GooglePhotosFeatureType.FAVORITES] };
+            _logger.LogInformation("Scraping only FAVORITES from Google Photos");
+        }
+        
+
+        return new()
+        {
+            mediaTypeFilter = new() { mediaTypes = [GooglePhotosMediaType.VIDEO] },
+            featureFilter = ff
+        };
     }
 }

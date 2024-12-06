@@ -1,6 +1,8 @@
 using VideoToolsCore.DataAccess;
 using VideoToolsCore.Utilities;
 
+namespace GoogleScraper;
+
 public class Settings : BaseSettings, IProvidesDbFilePath
 {
     public bool FreshDatabase { get; set; } = false;        
@@ -10,4 +12,5 @@ public class Settings : BaseSettings, IProvidesDbFilePath
     public bool ScrapeGoogleVideos { get; set; } = true;
     public bool ScrapeGoogleAlbums { get; set; } = true;
     public string? DbFilePath { get; set; }
+    public bool FavoritesOnly { get; set; }
 }

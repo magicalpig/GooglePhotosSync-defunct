@@ -62,12 +62,15 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
             var metadata = new VideoMetadata();
             foreach (var propToCopy in propsToCopy)
             {
-                // validate the metadata property to copy can be mapped to a database column
-                var dbColumnName = VideoMetadata.GetDbColumnForMetadataProperty(propToCopy)
-                    ?? throw new InvalidOperationException($"Metadata property \"{propToCopy}\" does not map to a database column.");
+                // validate the property to copy matches a video metadata property and is a property that can be written to the file's metadata
+                if (!VideoMetadata.IsPropertyWritable(propToCopy))
+                {
+                    _logger.LogError("The property you're trying to copy, \"{propToCopy}\", does not map to a writable VideoMetadata property.", propToCopy);
+                    continue;
+                }
 
-                var googleValue = googleVideo.GetType().GetProperty(dbColumnName)?.GetValue(googleVideo)?.ToString();
-                var localValue = localVideo.GetType().GetProperty(dbColumnName)?.GetValue(localVideo)?.ToString();
+                var googleValue = googleVideo.GetType().GetProperty(propToCopy)?.GetValue(googleVideo)?.ToString();
+                var localValue = localVideo.GetType().GetProperty(propToCopy)?.GetValue(localVideo)?.ToString();
                 if (string.IsNullOrWhiteSpace(googleValue))
                 {
                     _logger.LogWarning("{name}: Google video does not have a value for {prop} property", localVideo.Path, propToCopy);
