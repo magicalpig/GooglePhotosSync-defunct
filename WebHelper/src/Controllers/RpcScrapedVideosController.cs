@@ -4,27 +4,24 @@ using WebHelper.Services;
 
 namespace WebHelper.Controllers;
 [Route("api/[controller]")]
-public class RpcScrapedVideosController(WebApiVideoService videoService) : ControllerBase
+public class RpcScrapedVideosController(WebApiVideoService videoService, WebApiCurrentUserService currentUserService) : ControllerBase
 {
-    private readonly WebApiVideoService _db = videoService;
-    
+    private readonly WebApiVideoService _videoService = videoService;
+    private readonly WebApiCurrentUserService _currentUserService = currentUserService;
+
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] List<RpcScrapedVideo> videos)
-    {
+    {        
         // Key is RPC ID. Value is result of update operation.
-        Dictionary<string, UpdateResultCode> dbUpdateResults = [];
-        foreach (var video in videos)
-        {
-            var result = await _db.UpdateVideoFileGoogle(video);
-            dbUpdateResults.Add(video.RpcId, result);
-        }
+        var dbUpdateResults = 
+            await _videoService.ProcessRpcScrapeAsync(videos);
 
         // If some matches could not be made, 
         // check whether there are records in database that don't yet have RPC ID.
         List<string> recordsWithNoRpcId = [];
         if (dbUpdateResults.Any(kv => kv.Value == UpdateResultCode.NotFound))
         {
-            recordsWithNoRpcId = await _db.GetGoogleVideosWithNoRpcId();
+            recordsWithNoRpcId = await _videoService.GetGoogleVideosWithNoRpcIdASync();
         }
         return Ok(new
         {
@@ -48,6 +45,7 @@ public class RpcScrapedVideosController(WebApiVideoService videoService) : Contr
     [HttpGet]
     public IActionResult Get()
     {
-        return Ok("Hello from SendScrapedVideosController!");
+        var user = _currentUserService.UserId;
+        return Ok($"Hello from RpcScrapedVideosController, {user}!");
     }
 }

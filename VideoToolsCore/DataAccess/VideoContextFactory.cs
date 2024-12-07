@@ -10,11 +10,12 @@ public interface IProvidesDbFilePath
     string? DbFilePath { get; set; }
 }
 
-public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider? serviceProvider, IProvidesDbFilePath settings)
+public class VideoContextFactory(ILogger<VideoContextFactory> logger, IServiceProvider? serviceProvider, IProvidesDbFilePath settings)
 {
-    private readonly ILogger<VideoContext> _logger = logger;
+    private readonly ILogger<VideoContextFactory> _logger = logger;
     private readonly IServiceProvider? _serviceProvider = serviceProvider;
     private readonly IProvidesDbFilePath _settings = settings;
+    private bool _didOneTimeLogging = false; 
 
     public VideoContext CreateUserScopedVideoContext()
     {
@@ -52,7 +53,12 @@ public class VideoContextFactory(ILogger<VideoContext> logger, IServiceProvider?
         }
 
         var connectionString = $"Data Source={dbFilePath}";
-        _logger.LogInformation("Database will be stored in: {file}", connectionString);
+        if (!_didOneTimeLogging)
+        {
+            _logger.LogInformation("Database will be stored in: {file}", connectionString);
+            _didOneTimeLogging = true;
+        }
+        
         return connectionString;
     }
 }

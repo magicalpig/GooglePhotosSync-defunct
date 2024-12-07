@@ -220,25 +220,25 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
     }
 
     // Adds or updates videos in the db context to later be committed.
-    // returns list of newly scraped ids
+    // returns list of scraped ids
     private async Task<List<string>> ProcessMediaItems(IAsyncEnumerable<MediaItem> mediaItems)
     {
-        List<string> newlyScrapedIds = [];
+        List<string> scrapedIds = [];
         await foreach (var m in mediaItems)
         {
             _logger.LogDebug("Got media item {mediaItemId} from Google", m.id);
+            scrapedIds.Add(m.id);
+
+            // Create a new VideoFileGoogle object and compare it against a possible existing record
             var v = new VideoFileGoogle()
             {
                 GoogleId = m.id,
                 Name = m.filename,
                 CreatedDate = m.mediaMetadata.creationTime.ToLocalTime(),
                 Description = m.description,
+                LastMetadataScanTimestamp = DateTime.Now
             };
-            newlyScrapedIds.Add(v.GoogleId);
-
-            // process the video
-            // add to db if new
-            // update in db if exist
+            
             VideoFileGoogle? existing = await _db.GoogleVideos.FirstOrDefaultAsync(g => g.GoogleId == v.GoogleId);
             if (existing is null)
             {
@@ -253,9 +253,14 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 // copies all possible fields that come back from the REST API into existing record
                 // (but leaves other fields, like Size and Duration, alone)
                 existing.SyncToRestAPIResult(v);
+                existing.LastMetadataScanTimestamp = v.LastMetadataScanTimestamp;
+            }
+            else
+            {
+                _logger.LogDebug("no changes to video: {id}", v.GoogleId);
             }
         }
-        return newlyScrapedIds;
+        return scrapedIds;
     }
 
     private Filter GetFilter()
