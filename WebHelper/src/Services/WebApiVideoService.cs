@@ -69,8 +69,9 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
 
             try
             {
-                db.Attach(video);
+                db.Attach(video);            
                 video.LastMetadataScanTimestamp = DateTime.Now;
+                db.Entry(video).State = EntityState.Modified;
                 
                 await db.SaveChangesAsync();
                 // The ones with NoChange only had their last scan timestamp updated.

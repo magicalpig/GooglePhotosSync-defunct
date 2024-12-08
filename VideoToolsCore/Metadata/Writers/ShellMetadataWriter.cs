@@ -52,6 +52,7 @@ public class ShellMetadataWriter : MetadataWriterBase
                     shellFile = ShellFile.FromFilePath(filePath.Replace("/", @"\"));
                 }
 
+                //TODO: Apparently Title and other properties cannot be set on an mkv file. Even using Windows Explorer you can't set them.
                 using var writer = shellFile.Properties.GetPropertyWriter();
                 IShellProperty? shellProp = shellFile.Properties.GetProperty(shellPropName);
                 if (shellProp == null)

@@ -40,6 +40,7 @@ public class ShellMetadataReader : IMetadataReader
             // The best we can get from the shell tool is the codec's GUID
             var codecGuid = propertiesSystem.Video.Compression.Value;
             string codec = string.IsNullOrEmpty(codecGuid) ? VideoMetadata.UNKNOWN_CODEC : codecGuid;
+            //TODO: I get an exception when scraping mkv videos from 8mm film transfers folder
             if (_codecGuidMap.TryGetValue(codecGuid, out string? foundCodecName))
             {
                 codec = foundCodecName;

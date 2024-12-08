@@ -26,9 +26,12 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             _logger.LogInformation("Per the FreshDatabase setting, clearing out any Windows videos from database");
             _db.RemoveAllVideos();
         }
-
-        string sourceDir = _settings.SourceDir ?? throw new ArgumentException("\"SourceDir\" setting not found in your configuration.");
         
+        string sourceDir = _settings.SourceDir ?? throw new ArgumentException("\"SourceDir\" setting not found in your configuration.");
+        //TODO this is duplicated in MetadataCopier. Consider moving to a Settings class or BaseSettings
+        sourceDir = sourceDir.Replace('/', Path.DirectorySeparatorChar);
+        sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar); // remove trailing slash if present. DB query will add its own
+
         if (!Directory.Exists(sourceDir))
         {
             throw new ArgumentException($"Directory {sourceDir} does not exist.");
@@ -38,7 +41,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         _logger.LogInformation("Collecting information about video files in {sourceDir} as user {u}", sourceDir, _currentUserService.GetCurrentUserForEntity(new VideoFileWindows()));
         IEnumerable<string> filePaths = Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories)
             .Where(f => VideoFileTester.IsVideoFile(Path.GetExtension(f)))
-            .Select(Path.GetFullPath)
+            .Select(f=> Path.GetFullPath(f).ToLower())
         ;
         // Possibly limit how many local video files are examined/saved into database
         int? maxFiles = _settings.FileLimit;
@@ -51,9 +54,8 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         List<Task> tasks = [];
         List<VideoFileWindows> videoFiles = [];
         List<string> scannedDirectories = Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories).ToList();
-        scannedDirectories.Add(sourceDir);
-        // normalize slashes the same way we're doing for each file's path.
-        scannedDirectories = scannedDirectories.Select(d => Path.GetFullPath(d)).ToList();
+        scannedDirectories.Add(sourceDir);        
+        scannedDirectories = scannedDirectories.Select(d => Path.GetFullPath(d).ToLower()).ToList();        
         
         bool forceMetadata = false;
         if (_settings.ForceMetadataRefresh)
@@ -137,9 +139,11 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         if (maxFiles is null || maxFiles == 0)
         {
             _logger.LogDebug("Removing videos from database that were previously found under the inspected path but are no longer there.");
-            var dbVideos = _db.WindowsVideos.ToList();
-            var missingRecords = dbVideos.Where(v => scannedDirectories.Contains(v.Folder) && !filePaths.Contains(v.Path)).ToList();
-
+            var dbVideos = _db.WindowsVideos
+                              .Where(v => EF.Functions.Collate(v.Folder, "NOCASE") == sourceDir 
+                                || EF.Functions.Collate(v.Folder, "NOCASE").StartsWith(sourceDir + Path.DirectorySeparatorChar))
+                              .ToList();
+            var missingRecords = dbVideos.Where(v => scannedDirectories.Contains(v.Folder.ToLower()) && !filePaths.Contains(v.Path.ToLower())).ToList();
             if (missingRecords.Count > 0)
             {
                 _logger.LogWarning("Videos missing from the scanned directories ({count}): {missingRecords}", missingRecords.Count, missingRecords.Select(v => v.Path));

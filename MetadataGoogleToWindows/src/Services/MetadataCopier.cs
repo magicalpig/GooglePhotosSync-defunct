@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using VideoToolsCore.DataAccess;
@@ -22,26 +23,27 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
         sourceDir = sourceDir.Replace('/', Path.DirectorySeparatorChar);
         sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar); // remove trailing slash if present. DB query will add its own
 
+        var db = _videoContextFactory.CreateUserScopedVideoContext();
 
         var googleUser = _currentUserService.GoogleCurrentUserService?.UserId;
         var localUser = _currentUserService.LocalCurrentUserService?.UserId;
         _logger.LogInformation("Copying metadata from Google videos belonging to {gUser} to Windows videos belonging to {wUser}.\n Path is {sourceDir}\nProperties to copy are {props}",
             googleUser, localUser, sourceDir, propsToCopy);
 
-
+        
         // Find all windows videos that exists in or under the source directory
-        var localVideos = _videoContextFactory.CreateUserScopedVideoContext().Set<VideoFileWindows>()
+        var localVideos = db.Set<VideoFileWindows>()
             .Where(v => EF.Functions.Collate(v.Folder, "NOCASE") == sourceDir || EF.Functions.Collate(v.Folder, "NOCASE").StartsWith(sourceDir + Path.DirectorySeparatorChar))
             .ToList();
 
-        List<Task> tasks = [];
-        foreach (var localVideo in localVideos)
+        var videosToUpdate = new ConcurrentBag<VideoFileWindows>();
+        await Parallel.ForEachAsync(localVideos, async (localVideo, cancellationToken) =>
         {
             // ensure video file still exists
             if (!File.Exists(localVideo.Path))
             {
                 _logger.LogWarning("Video file {path} no longer exists. Skipping.", localVideo.Path);
-                continue;
+                return;
             }
 
             // find the google video that best matches the windows video
@@ -49,9 +51,10 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
             if (googleVideo == null)
             {
                 _logger.LogWarning("No Google video found for Windows video {localVideo}", localVideo.Path);
-                continue;
+                return;
             }
 
+            // if db record for Window file is outdated, don't trust any of the saved values when comparing to Google video.
             var dbIsOutdated = localVideo.LastMetadataScanTimestamp < File.GetLastWriteTime(localVideo.Path);
             if (dbIsOutdated)
             {
@@ -60,6 +63,7 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
 
             // Create a VideoMetadata with the properties to be changed set to the new values.
             var metadata = new VideoMetadata();
+            var anythingToCopy = false;
             foreach (var propToCopy in propsToCopy)
             {
                 // validate the property to copy matches a video metadata property and is a property that can be written to the file's metadata
@@ -82,17 +86,17 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
                 }
                 else if (googleValue == localValue)
                 {
-                    _logger.LogInformation("{name}: Google video and Windows video already have the same value for {prop} property", localVideo.Path, propToCopy);
+                    _logger.LogInformation("{name}: Google video and Windows video already have the same value for {prop} property: {googleValue}", localVideo.Path, propToCopy, googleValue);
                     continue;
                 }
-
-                _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Windows video (prop in database is currently set to \"{localValue}\")"
-                    , localVideo.Path, propToCopy, googleValue, localValue);
-
-
+                        
+                // stage the property to be copied to the Windows video by placing it in the VideoMetadata object
                 var metadataProperty = metadata.GetType().GetProperty(propToCopy);
                 if (metadataProperty != null)
                 {
+                    _logger.LogInformation("{name}: Copying {prop} property value of \"{googleValue}\" from Google video to Windows video (prop in database is currently set to \"{localValue}\")"
+                    , localVideo.Path, propToCopy, googleValue, localValue);
+                    anythingToCopy = true;
                     if (metadataProperty.PropertyType == typeof(DateTime?) && DateTime.TryParse(googleValue, out var googleDateTimeValue))
                     {
                         metadataProperty.SetValue(metadata, googleDateTimeValue);
@@ -104,28 +108,30 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
                 }
             }
 
-            tasks.Add(Task.Run(async () =>
+            if (anythingToCopy)
             {
-                // write metadata and if any changes were successful, update the local video
-                // using a separate context to avoid threading issues
+                // write metadata to file
                 var anySuccessfulChanges = await _metadataHelper.WriteMetadataAsync(localVideo, metadata);
+                // read full metadata from file. Attach to video and stage for database update
                 if (anySuccessfulChanges)
                 {
                     var metadataRefreshed = await _metadataHelper.GetMetadataAsync(localVideo);
                     if (metadataRefreshed != null)
-                    {
-                        using var db = _videoContextFactory.CreateUserScopedVideoContext();
-                        db.Attach(localVideo);
-                        _logger.LogDebug("Updating database for {localVideo}.", localVideo.Path);
+                    {                        
+                        _logger.LogDebug("Staging database update for {localVideo}.", localVideo.Path);                        
                         localVideo.AttachMetadata(metadataRefreshed);
-                        await db.SaveChangesAsync();
+                        videosToUpdate.Add(localVideo);                        
                     }
                 }
-            }));
+            }
+        });
+    
+        // db context operations must be done in single thread
+        foreach (var video in videosToUpdate)
+        {
+            db.Attach(video);
+            db.Update(video);
         }
-
-
-        await Task.WhenAll(tasks);
-
+        await db.SaveChangesAsync();        
     }
 }

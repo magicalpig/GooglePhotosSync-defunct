@@ -32,13 +32,13 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             var reader = _availableReaders[readerIndex];
             try
             {
-                _logger.LogDebug("Attempting metadata read using {readerType} for {filePath}", reader.GetType().Name, videoFile.Path);
+                _logger.LogDebug("READ metadata using {readerType} for {filePath}", reader.GetType().Name, videoFile.Path);
                 var thisReaderMetadata = await reader.GetMetadataAsync(videoFile);
                 metadataCollected = metadataCollected?.FillMissingFrom(thisReaderMetadata) ?? thisReaderMetadata;
             }
             catch (Exception e)
             {
-                _logger.LogError("Error reading metadata for file {filePath}: {errMessage}", videoFile.Path, e.Message);
+                _logger.LogError("Error reading metadata for file {filePath} with {readerName}: {errMessage}", videoFile.Path, reader.GetType().Name, e.Message);
             }
             finally
             {
@@ -60,23 +60,30 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             var writer = _availableWriters[writerIndex];
             if (writer.CanWriteAny(metadata))
             {
-                _logger.LogDebug("Attempting metadata write using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
-                var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
-                
-                if (writtenProperties.Count == 0)
+                _logger.LogDebug("WRITE metadata using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
+                try
                 {
-                    _logger.LogWarning("No metadata properties written by <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
-                }
-                else
-                {
-                    somethingChangedSuccessfully = true;
-                    // null out the written property
-                    foreach (var prop in writtenProperties)
+                    var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
+                    
+                    if (writtenProperties.Count == 0)
                     {
-                        _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
-                        // null out the property just written
-                        metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
-                    }                    
+                        _logger.LogWarning("No metadata properties written by <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
+                    }
+                    else
+                    {
+                        somethingChangedSuccessfully = true;
+                        // null out the written property
+                        foreach (var prop in writtenProperties)
+                        {
+                            _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
+                            // null out the property just written
+                            metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
+                        }                    
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError("Error writing metadata for file {filePath} with {writerName}: {errMessage}", videoFile.Path, writer.GetType().Name, e.Message);
                 }
             }
             else

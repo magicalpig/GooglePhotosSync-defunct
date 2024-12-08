@@ -22,7 +22,7 @@
             "FormatterName": "simple",
             "FormatterOptions": {
                 "IncludeScopes": false,
-                "SingleLine": true,
+                "SingleLine": false,
                 "EnableColors": true
             }
         },
