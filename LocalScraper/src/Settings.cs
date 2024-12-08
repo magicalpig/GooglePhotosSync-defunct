@@ -6,7 +6,12 @@ namespace LocalScraper;
 
 public class Settings : BaseSettings, IProvidesFFMpegPath, IProvidesDbFilePath
 {
-    public string? SourceDir { get; set; }
+    private string? _sourceDir;
+    public string? SourceDir 
+    { 
+        get => NormalizePath(_sourceDir); 
+        set => _sourceDir = value;
+    }
     public bool FreshDatabase { get; set; } = false;
     public string? FFMpegPath { get; set; }
     public int? FileLimit { get; set; }

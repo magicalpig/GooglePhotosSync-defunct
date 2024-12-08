@@ -11,4 +11,17 @@ public abstract class BaseSettings
         }
         return value;
     }
+
+    protected static string? NormalizePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        // make all forward slashes into backslashes
+        path = path.Replace('/', Path.DirectorySeparatorChar);
+        // remove trailing slash if present. DB query will add its own
+        path = path.TrimEnd(Path.DirectorySeparatorChar);
+        return path;
+    }
 }
