@@ -15,7 +15,8 @@ public class ShellMetadataReader : IMetadataReader
         { "{3334504D-0000-0010-8000-00AA00389B71}", "msmpeg4v3" },
         { "{3147504D-0000-0010-8000-00AA00389B71}", "mpeg1video" },
         { "{30395056-0000-0010-8000-00AA00389B71}", "vp9" },
-        { "{33564D57-0000-0010-8000-00AA00389B71}", "wmv3" }
+        { "{33564D57-0000-0010-8000-00AA00389B71}", "wmv3" },
+        { "{E06D8026-DB46-11CF-B4D1-00805F6CBBEA}", "MPEG-2 video" }
     };
 
     public int Priority { get; init; } = 1;

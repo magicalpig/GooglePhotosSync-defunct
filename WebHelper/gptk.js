@@ -108,6 +108,8 @@
   <div class="action-bar">
     <div class="action-buttons">
       <button type="button" id="scrapeVideos" title="Scrape Videos">Scrape Videos</button>
+      <button type="button" id="testScrapeVideos" title="Test Scrape Videos">Test Scrape Videos</button>
+      <button type="button" id="testHeadCalls" title="Test HEAD Calls">Test HEAD Calls</button>
       <button id="showExistingAlbumForm" title="Add To Existing Album">Add To Existing Album</button>
       <button id="showNewAlbumForm" title="Add To New Album">Add To New Album</button>
       <button type="button" id="toTrash" title="Move To Trash">Move to Trash</button>
@@ -838,6 +840,7 @@
         return filterDescriptionString;
     }
 
+    // returns JSON with key/value pairs from the specified form
     function getForm(selector) {
         let form = {};
         const formElement = document.querySelector(selector);
@@ -884,22 +887,11 @@
             };
         }
 
-        function libraryTimelinePage(data) {
+        function linkParse(rawLinkData) {
             return {
-                items: data?.[0]?.map((rawItemData) =>
-                    libraryItemParse(rawItemData)
-                ),
-                nextPageId: data?.[1],
-                lastItemTimestamp: parseInt(data?.[2]),
-            };
-        }
-
-        function libraryGenericPage(data) {
-            return {
-                items: data?.[0]?.map((rawItemData) =>
-                    libraryItemParse(rawItemData)
-                ),
-                nextPageId: data?.[1],
+                productId: rawLinkData?.[6],
+                linkId: rawLinkData?.[17],
+                itemCount: rawLinkData?.[3],
             };
         }
 
@@ -913,30 +905,6 @@
             };
         }
 
-        function lockedFolderPage(data) {
-            return {
-                nextPageId: data?.[0],
-                items: data?.[1]?.map((rawItemData) =>
-                    lockedFolderItemParse(rawItemData)
-                ),
-            };
-        }
-
-        function linkParse(rawLinkData) {
-            return {
-                productId: rawLinkData?.[6],
-                linkId: rawLinkData?.[17],
-                itemCount: rawLinkData?.[3],
-            };
-        }
-
-        function linksPage(data) {
-            return {
-                items: data?.[0]?.map((rawLinkData) => linkParse(rawLinkData)),
-                nextPageId: data?.[1],
-            };
-        }
-
         function albumParse(rawAlbumData) {
             return {
                 productId: rawAlbumData?.[0],
@@ -944,15 +912,6 @@
                 name: rawAlbumData?.at(-1)?.[72930366]?.[1],
                 itemCount: rawAlbumData?.at(-1)?.[72930366]?.[3],
                 isShared: rawAlbumData?.at(-1)?.[72930366]?.[4] || false,
-            };
-        }
-
-        function albumsPage(data) {
-            return {
-                items: data?.[0]?.map((rawAlbumData) =>
-                    albumParse(rawAlbumData)
-                ),
-                nextPageId: data?.[1],
             };
         }
 
@@ -972,6 +931,64 @@
             };
         }
 
+        function itemBulkInfoParse(rawItemData) {
+            return {
+                productId: rawItemData?.[0],
+                descriptionFull: rawItemData?.[1]?.[2],
+                fileName: rawItemData?.[1]?.[3],
+                dateTaken: rawItemData?.[1]?.[6],
+                dateUploaded: rawItemData?.[1]?.[8],
+                size: rawItemData?.[1]?.[9],
+                takesUpSpace: rawItemData?.[1]?.at(-1)?.[0] === 1,
+                spaceTaken: rawItemData?.[1]?.at(-1)?.[1],
+                isOriginalQuality: rawItemData?.[1]?.at(-1)?.[2] === 2,
+            };
+        }
+
+        function libraryTimelinePage(data) {
+            return {
+                items: data?.[0]?.map((rawItemData) =>
+                    libraryItemParse(rawItemData)
+                ),
+                nextPageId: data?.[1],
+                lastItemTimestamp: parseInt(data?.[2]),
+            };
+        }
+
+        function libraryGenericPage(data) {
+            return {
+                items: data?.[0]?.map((rawItemData) =>
+                    libraryItemParse(rawItemData)
+                ),
+                nextPageId: data?.[1],
+            };
+        }
+        
+        function lockedFolderPage(data) {
+            return {
+                nextPageId: data?.[0],
+                items: data?.[1]?.map((rawItemData) =>
+                    lockedFolderItemParse(rawItemData)
+                ),
+            };
+        }
+        
+        function linksPage(data) {
+            return {
+                items: data?.[0]?.map((rawLinkData) => linkParse(rawLinkData)),
+                nextPageId: data?.[1],
+            };
+        }
+    
+        function albumsPage(data) {
+            return {
+                items: data?.[0]?.map((rawAlbumData) =>
+                    albumParse(rawAlbumData)
+                ),
+                nextPageId: data?.[1],
+            };
+        }
+
         function albumItemsPage(data) {
             return {
                 items: data?.[1]?.map((rawItemData) =>
@@ -988,21 +1005,7 @@
                 ),
                 nextPageId: data?.[1],
             };
-        }
-
-        function itemBulkInfoParse(rawItemData) {
-            return {
-                productId: rawItemData?.[0],
-                descriptionFull: rawItemData?.[1]?.[2],
-                fileName: rawItemData?.[1]?.[3],
-                dateTaken: rawItemData?.[1]?.[6],
-                dateUploaded: rawItemData?.[1]?.[8],
-                size: rawItemData?.[1]?.[9],
-                takesUpSpace: rawItemData?.[1]?.at(-1)?.[0] === 1,
-                spaceTaken: rawItemData?.[1]?.at(-1)?.[1],
-                isOriginalQuality: rawItemData?.[1]?.at(-1)?.[2] === 2,
-            };
-        }
+        }        
 
         function bulkInfo(data) {
             return data.map((rawItemData) => itemBulkInfoParse(rawItemData));
@@ -1034,7 +1037,7 @@
                 [[rpcid, JSON.stringify(requestData), null, "generic"]],
             ];
             let rpcMap = {
-                lcxiM: "library timeline page",
+                lcxiM: "library timeline page", // used when called from listItemByTakenDate
                 nMFwOc: "locked folder page",
                 EzkLib: "library generic page",
                 F2A0H: "links page",
@@ -1043,8 +1046,8 @@
                 zy0IHe: "trash page",
                 EWgK9e: "bulk info",
             };
-            console.log("Making API request with RPC ID " + rpcid); //#RDA
-            console.log("This correlates to the function " + rpcMap[rpcid]); // #RDA
+            console.log("Making API request with RPC ID " + rpcid);
+            console.log("This correlates to the function " + rpcMap[rpcid]);
             const requestDataString = `f.req=${encodeURIComponent(
                 JSON.stringify(requestData)
             )}&at=${encodeURIComponent(windowGlobalData.at)}&`;
@@ -1341,6 +1344,7 @@
             }
         }
 
+        // gets additional metadata: description, filename, date taken, date uploaded, size, space taken, original quality
         async getBatchMediaInfo(productIdList, parseResponse = true) {
             const rpcid = "EWgK9e";
             productIdList = productIdList.map((id) => [id]);
@@ -1398,6 +1402,38 @@
                 console.error("Error in getBatchMediaInfo:", error);
                 throw error;
             }
+        }
+
+        // returns array of tuples [rpcId, restId]
+        // There should only be 1 tuple returned for each call because batch size should always be 1
+        async convertRestIdsToRpcIds(restIds) {
+            const urlBase = "https://photos.google.com/lr/photo/";
+            
+            const tuples = [];
+            for (let restId of restIds) {                
+                const url = urlBase + restId;
+                console.log("HEAD call to : " + url);
+                let response;
+                try {
+                    response = await fetch(url, { method: "HEAD" });
+                    const newUrl = response.url;
+                    const matches = newUrl.match(/\/([^\/]+)$/);
+                    if (matches) {
+                        const rpcId = matches[1];
+                        log(`REST ID ${restId.slice(0, 7) + "..." + restId.slice(-10)} maps to RPC ID ${rpcId}`);
+                        tuples.push([rpcId, restId]);
+                    }
+                    else {
+                        log(`No RPC ID found for REST ID ${restId}`, "error");
+                    }
+                } catch (error) {
+                    log(
+                        "Error making HEAD request:" + error.toString(),
+                        "error"
+                    );
+                }
+            }
+            return tuples;
         }
     }
 
@@ -1458,6 +1494,8 @@
             this.infoSize = parseInt(infoSize);
         }
 
+        // splits the items array into chunks and executes the api method once for each chunk.
+        // returns an array which is the result of all the api calls.    
         async executeWithConcurrency(
             apiMethod,
             successCheck,
@@ -1737,7 +1775,7 @@
             return true;
         }
 
-        async sendToServer(mediaItems) {            
+        async sendMediaItemsToServer(mediaItems) {            
             // reduce media items to properties we care about and with property names matching the
             // schema of the WebHelper API's RpcScrapedVideo object.
             // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
@@ -1799,7 +1837,15 @@
             );
             if (shouldGetRpcIds) {
                 // of these id mappings are for db records having REST ID but no RPC ID.
-                let idMappings = await this.convertRestIdsToRpcIds(
+                //TODO use this.executeWithConcurrency passing in 
+                // this.as the api method,
+                // a new function for the success check of each batch,
+                // a batch size of 1,
+                // and data.recordsWithNoRpcId as the itemsArray
+                // 
+                // I can let exceptions bubble up to executeWithConcurrency,
+                // I can remove the throttling. executeWithConcurrency will handle that (using maxConcurrentApiReq)
+                let idMappings = await this.getRpcIdMappings(
                     data.recordsWithNoRpcId
                 );
                 if (Object.keys(idMappings).length > 0) {
@@ -1826,45 +1872,50 @@
                         })
                         .filter((g) => g.rpcId && g.googleId);
                     // send the fixed media items to the server
-                    this.sendToServer(fixedMediaItems);
+                    this.sendMediaItemsToServer(fixedMediaItems);
                 }
             }
         }
 
         // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
-        async convertRestIdsToRpcIds(restIds) {
-            log(
-                `Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`
+        async getRpcIdMappings(restIds) {
+            log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);
+            const isSuccess = (result) => Array.isArray(result);
+            const tuples = await this.executeWithConcurrency(
+                this.api.convertRestIdsToRpcIds,
+                isSuccess,
+                1,
+                restIds
             );
-            const urlBase = "https://photos.google.com/lr/photo/";
-            let callCount = 0;
+            
+            // convert the [rpcId, restId] tuples to a dictionary
             const newMappings = {};
-            for (let restId of restIds) {
-                if (callCount++ % 5 == 0) {
-                    await new Promise((resolve) => setTimeout(resolve, 500));
-                }
-                const url = urlBase + restId;
-                console.log("HEAD call to : " + url);
-                let response;
-                try {
-                    response = await fetch(url, { method: "HEAD" });
-                    const newUrl = response.url;
-                    const matches = newUrl.match(/\/([^\/]+)$/);
-                    if (matches) {
-                        const rpcId = matches[1];
-                        const shortRestId =
-                            restId.slice(0, 7) + "..." + restId.slice(-10);
-                        log(`REST ID ${shortRestId} maps to RPC ID ${rpcId}`);
-                        newMappings[rpcId] = restId;
-                    }
-                } catch (error) {
-                    log(
-                        "Error making HEAD request:" + error.toString(),
-                        "error"
-                    );
-                }
-            }
+            tuples.forEach((tuple) => {
+                const [rpcId, restId] = tuple;
+                newMappings[rpcId] = restId;
+            });
             return newMappings;
+        }
+
+
+        async testHeadCalls() {
+            await this.getRpcIdMappings([
+                'APdo2mw0WlJdjGgfA865SmB9yK7xOkjuc8aPLKOKeaOgyVAVY7Je_7f8sXdp9Oqstdt5ay4ZlwZAY1_46PLKm4PiKW8ojEoMAg',
+                'APdo2mzP5kW4z53nbdqamhnToA3f4OwZNzn5zqERMHewK4HUKcJ2rL65MdkTUcMGy8LrCnlVxg0OxElceotyXVQbUoREUC3vhg',
+                'APdo2mwzrANpsFCwHhegkQnOKNT0dMcRJ5HSF14dhCLFKXD1MgHmsGyKARwDcMd9cbnt8oWt_M-m1pwJ72xYuDa9rMnCcoDcgw',
+                'APdo2mwux2oCnvQro5ysHaDAw5s6wQaHr2tKQHZdlQ2scbJ4CQeIxXHyj_JsQG2emMGeqesU7snzjAvRLJwcErRLKj7dcPECmw',
+                'APdo2myyV4uUO8ufEige8KYBFyU4vCvLJfjIDb86-tihjxjPced-nnEU7s5qn2MJGoGzcXXvESZbYhKMki9-CtFudV4vGy9dGQ',
+                'APdo2mwld0aAIofMJ-FOVvJJSIgI2yp-hTVXAdxLQMKUNRZK01TAxPhmboi8P5t4MB3lxU2nldw8BHcOJP92IcTZ4K8hg2Ry2w',
+                'APdo2mxYvh_Q3bXgUh0BwFPKD1nEGNu1Sd-Hv5jJz7kOkPWcW98Eilol7QOaUa9JHcr2gA8AscEP88opfudA7QqaKxlPcQBNTA',
+                'APdo2mzKtpcLLO5sYRyHgUS2dxR3sheXGi2SV8DXLDfJJWQ7van_3Op6h-RF4CQstDVMcdizTAcNxsNjMDtFVO_Xoij5RW5Rgw',
+                'APdo2mzq8qYjNv2h5Xp213ku8-INI9biG-v3iGLs6zWMQWbHAHC7pyqknTJWBlq3nWsdzg_mSKDvoeLl_VcP6Ew7auVE2mcqxA',
+                'APdo2mzNnurYtkKe8bo6f615q7uQoYpmfNwjKn35qPKVmFHc48XJ5OIfE93t16zMtQn31sLa6JaU1IlHJ6ZtfzE1sHBN8fl2Uw',
+                'APdo2myDoLqj4MU_gqneE-kD3EsH_4k5wKWhcQF91QJO0v58ROklIC3XE7DoHoCSOLQSgIDDvyRh2wxd8-qUi0C8ZUYpdq5L4g',
+                'APdo2mxvjTRMn8lwmX1dYpUhRd8cOTeGhpJAy8TyM8Zzh8Gkh450Yx07u3HCHDBDCFIRKv9QlxH4fstiVV6rvCHiu2SjzndXbw',
+                'APdo2mxjdhEAYozVNsMxqiH6rRRkMJ1WE5PUg3X8UY9INfSkrzqYhY4XoCAY4qmebXUgpN3ceDq62YMcyQNqTrwJkjpPKs_mRQ',
+                'APdo2mzQ1k70b5Nss9DmOL0IrX5eErrsGp11F4iORxKiTRjS3lhNxtQAWM1jGS9ENUGCOwwhipMr01ttkgJ_er4-K8TArRCzLA',
+                'APdo2myEijK_SmLjt4Dg59cWQO4W-OGv0NIjA5IAEgnxY7yHykRjH6iMgJCBVniYu6gA_SmQ6Xratrz3Bp0kW2heycPif1DXIw'
+            ]);           
         }
     }
 
@@ -1905,6 +1956,7 @@
                 log("Reading library");
                 if (filter.dateType === "uploaded")
                     mediaItems = await this.getLibraryItemsByUploadDate(filter);
+                // This is the default path for library queries even if no date range entered.
                 else if (filter.dateType === "taken")
                     mediaItems = await this.getLibraryItemsByTakenDate(filter);
             } else if (source === "search") {
@@ -2047,6 +2099,7 @@
             return mediaItems;
         }
 
+        // More metadata needed when user wants to filter by filename, description, space used, quality, or size
         async extendMediaItemsWithMediaInfo(mediaItems) {
             const mediaInfoData = await this.apiUtils.getBatchMediaInfoChunked(
                 mediaItems
@@ -2488,8 +2541,11 @@
                         await this.apiUtils.setAsFavorite(mediaItems);
                     if (action.elementId === "unFavorite")
                         await this.apiUtils.unFavorite(mediaItems);
-                    if (action.elementId === "scrapeVideos")
-                        await this.apiUtils.sendToServer(mediaItems);
+                    if (action.elementId === "scrapeVideos" || action.elementId === "testScrapeVideos")
+                        await this.apiUtils.sendMediaItemsToServer(mediaItems);
+                    if (action.elementId === "testHeadCalls")
+                        await this.apiUtils.testHeadCalls();
+
                     log(
                         `Task completed in ${timeToHHMMSS(
                             new Date() - startTime
@@ -2788,7 +2844,10 @@
         { elementId: "unFavorite" },
         { elementId: "lock" },
         { elementId: "unLock" },
-        { elementId: "scrapeVideos" }
+        { elementId: "scrapeVideos" },
+        { elementId: "testScrapeVideos" },
+        { elementId: "testHeadCalls" }
+
     ];
 
     async function getUserConfirmationInModal(message) {
@@ -2838,7 +2897,7 @@
         // user input value if action has a target
         const target = document.getElementById(action?.targetId)?.value;
         // id of currently selected source element
-        const source = document.querySelector(
+        let source = document.querySelector(
             'input[name="source"]:checked'
         ).id;
 
@@ -2847,17 +2906,35 @@
         if (!filtersForm.checkValidity()) {
             filtersForm.reportValidity();
             return;
-        }
+        }        
 
-        if (actionId == "scrapeVideos") {
+        // Parsed filter object
+        let filter = getForm(".filters-form");
+
+        // Parsed settings object
+        const apiSettings = getForm(".settings-form");
+        if (!userConfirmation(action, filter)) return;
+
+        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
+            source = "library";
             // force a hardcoded filter that returns all videos
-            let f = document.querySelector(".filters-form");
-            f.reset();
-            f.elements["type"].value = "video";
-            // this dummy filter will trigger additional RPC calls to obtain file size
-            f.elements["lowerBoundarySize"].value = 69;
-            updateUI();
-
+            // The condition on size will force additional RPC calls to obtain file size.
+            // The dateType condition is needed to even though date range is not specified.    
+            filter = {
+                "type": "video",
+                "lowerBoundarySize": 69,
+                "dateType" : "taken"
+            };
+            
+            if (actionId === "testScrapeVideos") {
+                // make query restrictive. Google will give results in 1 API call.
+                filter = {
+                    ...filter,
+                    "lowerBoundaryDate": "2024-11-12T15:25", 
+                    "higherBoundaryDate": "2024-12-26T15:28",
+                    "intervalType": "include"
+                };
+            }
             // abort mission if my web api is not running
             log("Confirming web server is running");
             if (await apiUtils.confirmWebServerRunning()) {
@@ -2867,14 +2944,13 @@
                 return;
             }
         }
-
-        // Parsed filter object
-        const filter = getForm(".filters-form");
-
-        // Parsed settings object
-        const apiSettings = getForm(".settings-form");
-        if (!userConfirmation(action, filter)) return;
-
+        // alter form such the media search action is fast
+        else if (actionId === "testHeadCalls") {
+            source = "search";
+            filter = {
+                "searchQuery": "Schenectady"
+            };            
+        }
 
         // Disable action bar while process is running
         disableActionBar(true);
