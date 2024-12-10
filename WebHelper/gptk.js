@@ -40,7 +40,7 @@
   <hr>
   <div class="sources">
     <div class="source">
-      <input type="radio" name="source" id="library" class="sourceHeaderInput" checked="checked">
+      <input type="radio" name="source" id="library" class="sourceHeaderInput">
       <label class="sourceHeader" for="library">
         <svg width="24px" height="24px">
           <path
@@ -56,6 +56,15 @@
             d="M20.49 19l-5.73-5.73C15.53 12.2 16 10.91 16 9.5A6.5 6.5 0 1 0 9.5 16c1.41 0 2.7-.47 3.77-1.24L19 20.49 20.49 19zM5 9.5C5 7.01 7.01 5 9.5 5S14 7.01 14 9.5 11.99 14 9.5 14 5 11.99 5 9.5z">
           </path>
         </svg>Search</label>
+    </div>
+    <div class="source">
+      <input type="radio" name="source" id="user-provided" class="sourceHeaderInput" checked="checked">
+      <label class="sourceHeader" for="user-provided">
+        <svg width="24px" height="24px" viewBox="0 0 24 24">
+          <path          
+            d="M9 21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h11a1 1 0 0 1 0 2H5v12h3a1 1 0 0 1 1 1zm3-17a1 1 0 0 0 0-2H6a1 1 0 0 0 0 2zm9 7v10a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1zm-2 6.5a1 1 0 0 0-1-1h-3a1 1 0 0 0 0 2h3a1 1 0 0 0 1-1zm0-4a1 1 0 0 0-1-1h-3a1 1 0 0 0 0 2h3a1 1 0 0 0 1-1z">
+          </path>
+        </svg>Paste IDs</label>
     </div>
     <div class="source">
       <input type="radio" name="source" id="albums" class="sourceHeaderInput">
@@ -118,8 +127,9 @@
       <button type="button" id="unArchive" title="Remove From Archive">Un-Archive</button>
       <button type="button" id="toFavorite" title="Set Favorite">Favorite</button>
       <button type="button" id="unFavorite" title="Removed From Favorites">Un-Favorite</button>
-      <button type="button" id="lock" title="Move to Locked Folder">Move to Locked Folder</button>
-      <button type="button" id="unLock" title="Move out of Locked Folder">Move out of Locked Folder</button>
+      <button style="display: none;" type="button" id="lock" title="Move to Locked Folder">Move to Locked Folder</button>
+      <button style="display: none;" type="button" id="unLock" title="Move out of Locked Folder">Move out of Locked Folder</button>
+
     </div>
 
     <div class="to-existing-container">
@@ -162,6 +172,13 @@
             Reset Filters
           </div>
         </div>
+        <details open class="paste-ids">
+            <summary>Paste RPC IDs</summary>
+            <textarea name="productIds" placeholder="Paste RPC IDs" rows="24" cols="40">
+                AF1QipN8j9TyABllfeKtXM5PXg-pQ05Sv5FYmYkaokOX
+            </textarea>
+
+        </details>
         <details open class="include-albums">
           <summary>Select Albums</summary>
           <fieldset>
@@ -834,6 +851,10 @@
             }
         }
 
+        if (filter.productIds) {            
+            descriptionParts.push(`with any of ${textareaValueToArray(filter.productIds).length} hardcoded RPC IDs`);            
+        }
+
         let filterDescriptionString = descriptionParts.join(" ");
         if (filterDescriptionString == "Filter: All media")
             filterDescriptionString = "Filter: None";
@@ -915,13 +936,7 @@
             };
         }
 
-        function itemBasicParse(rawItemData) {
-            console.log(
-                "Inside itemBasicParse where the duration is " +
-                    rawItemData?.at(-1)?.[76647426]?.[0] +
-                    " for product ID " +
-                    rawItemData?.[0]
-            );
+        function itemBasicParse(rawItemData) {            
             return {
                 productId: rawItemData?.[0],
                 dateTaken: rawItemData?.[2],
@@ -1020,6 +1035,7 @@
         if (rpcid === "snAcKc") return albumItemsPage(data);
         if (rpcid === "zy0IHe") return trashPage(data);
         if (rpcid === "EWgK9e") return bulkInfo(data);
+        if (rpcid === "VrseUb") return itemBasicParse(data);
     }
 
     const windowGlobalData = {
@@ -1032,22 +1048,13 @@
     };
 
     class Api {
-        async makeApiRequest(rpcid, requestData) {
+        async makeApiRequest(rpcid, requestData, lastBit = "generic") {
             requestData = [
-                [[rpcid, JSON.stringify(requestData), null, "generic"]],
+                [[rpcid, JSON.stringify(requestData), null, lastBit]],
             ];
-            let rpcMap = {
-                lcxiM: "library timeline page", // used when called from listItemByTakenDate
-                nMFwOc: "locked folder page",
-                EzkLib: "library generic page",
-                F2A0H: "links page",
-                Z5xsfc: "albums page",
-                snAcKc: "album items page",
-                zy0IHe: "trash page",
-                EWgK9e: "bulk info",
-            };
+
             console.log("Making API request with RPC ID " + rpcid);
-            console.log("This correlates to the function " + rpcMap[rpcid]);
+
             const requestDataString = `f.req=${encodeURIComponent(
                 JSON.stringify(requestData)
             )}&at=${encodeURIComponent(windowGlobalData.at)}&`;
@@ -1174,6 +1181,22 @@
                 return response;
             } catch (error) {
                 console.error("Error in listLockedFolderItems:", error);
+                throw error;
+            }
+        }
+
+        // only works on 1 item at a time
+        // but must take an array and return an array because being called through executeWithConcurrency
+        async attachMediaId(mediaItems) {
+            const rpcid = "VrseUb";
+            const productId = mediaItems[0].productId;
+            try {
+                const requestData = [productId, null, null, 1];
+                let response = await this.makeApiRequest(rpcid, requestData);
+                response = response[0];                
+                return [parser(response, rpcid)];
+            } catch (error) {
+                console.error("Error in getItemByProductId:", error);
                 throw error;
             }
         }
@@ -1477,8 +1500,7 @@
     class ApiUtils {
         constructor(core = null, settings) {
             this.api = new Api();
-            this.executeWithConcurrency =
-                this.executeWithConcurrency.bind(this);
+            this.executeWithConcurrency = this.executeWithConcurrency.bind(this);
             this.getAllItems = this.getAllItems.bind(this);
             this.core = core;
             let {
@@ -1951,7 +1973,7 @@
         }
 
         async getAndFilterMedia(filter, source) {
-            let mediaItems = [];
+            let mediaItems = [];                   
             if (source === "library") {
                 log("Reading library");
                 if (filter.dateType === "uploaded")
@@ -2003,6 +2025,9 @@
                         ...(await this.apiUtils.getAllMediaInAlbum(albumId))
                     );
                 }
+            } else if (source === "user-provided") {
+                // return mediaItems as objects having productId set to the provided product ID (RPC ID).
+                mediaItems = textareaValueToArray(filter.productIds).map((pId) => ({ "productId": pId }));
             }
 
             log("Source read complete");
@@ -2501,13 +2526,25 @@
             );
            
             try {
+
+                // THIS IS THE BIG ONE
                 const startTime = new Date();
                 log(`Start Time ${dateToHHMMSS(startTime)}`);
-                const mediaItems = await this.getAndFilterMedia(
+                let mediaItems = await this.getAndFilterMedia(
                     filter,
                     source,
                     apiSettings
                 );
+
+                if (source === "user-provided" && action.needsMediaId) {
+                    mediaItems = await this.apiUtils.executeWithConcurrency(
+                        this.api.attachMediaId,
+                        (result) => Array.isArray(result) && result[0]?.mediaId,
+                        1,
+                        mediaItems
+                    );
+                }
+
                 if (!mediaItems?.length) 
                     log("No items to process.");
                 else {
@@ -2563,6 +2600,9 @@
     const core = new Core();
     const apiUtils = new ApiUtils(core);
 
+    function textareaValueToArray(val) {
+        return val.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+    }
     function updateUI() {
         function toggleVisibility(element, toggle) {
             const allDescendants = element.querySelectorAll("*");
@@ -2607,21 +2647,18 @@
 
         function updateActionButtonStates() {
             document.getElementById("unArchive").disabled = archivedExcluded;
-            document.getElementById("toFavorite").disabled =
-                favoritesOnly || isActiveTab("favorites");
+            document.getElementById("toFavorite").disabled = favoritesOnly || isActiveTab("favorites");
             document.getElementById("unFavorite").disabled = favoritesExcluded;
             document.getElementById("toArchive").disabled = archivedOnly;
-            document.getElementById("restoreTrash").disabled =
-                !isActiveTab("trash");
+            document.getElementById("restoreTrash").disabled = !isActiveTab("trash");
             document.getElementById("toTrash").disabled = isActiveTab("trash");
-            document.getElementById("lock").disabled =
-                isActiveTab("lockedFolder");
-            document.getElementById("unLock").disabled =
-                !isActiveTab("lockedFolder");
+            document.getElementById("lock").disabled = isActiveTab("lockedFolder");
+            document.getElementById("unLock").disabled = !isActiveTab("lockedFolder");
         }
 
         function updateFilterVisibility() {
             const filterElements = {
+                pasteIds: document.querySelector(".paste-ids"),
                 includeAlbums: document.querySelector(".include-albums"),
                 owned: document.querySelector(".owned"),
                 search: document.querySelector(".search"),
@@ -2635,6 +2672,8 @@
                 archive: document.querySelector(".archive"),
                 excludeShared: document.querySelector(".exclude-shared"),
                 excludeFavorite: document.querySelector(".exclude-favorites"),
+                date: document.querySelector(".date-interval"),
+                type: document.querySelector(".type"),
             };
 
             // Default: hide all
@@ -2654,7 +2693,7 @@
                 toggleVisibility(filterElements.favorite, true);
                 toggleVisibility(filterElements.archive, true);
             }
-            if (!isActiveTab("trash")) {
+            if (!isActiveTab("trash") && !isActiveTab("user-provided")) {
                 toggleVisibility(filterElements.quality, true);
                 toggleVisibility(filterElements.size, true);
                 toggleVisibility(filterElements.filename, true);
@@ -2670,13 +2709,18 @@
             if (isActiveTab("library")) {
                 toggleVisibility(filterElements.excludeFavorite, true);
             }
+            if (isActiveTab("user-provided")) {
+                toggleVisibility(filterElements.pasteIds, true);
+            }
+            if (!isActiveTab("user-provided")) {
+                toggleVisibility(filterElements.date, true);
+                toggleVisibility(filterElements.type, true);
+            }
         }
 
         lockedFolderTabState();
 
         const filter = getForm(".filters-form");
-
-        // console.log(filter);
 
         const favoritesOnly = filter.favorite === "true";
         const favoritesExcluded =
@@ -2836,14 +2880,14 @@
             elementId: "toNewAlbum",
             targetId: "newAlbumName",
         },
-        { elementId: "toTrash" },
-        { elementId: "restoreTrash" },
-        { elementId: "toArchive" },
-        { elementId: "unArchive" },
-        { elementId: "toFavorite" },
-        { elementId: "unFavorite" },
-        { elementId: "lock" },
-        { elementId: "unLock" },
+        { elementId: "toTrash", needsMediaId: true },
+        { elementId: "restoreTrash", needsMediaId: true },
+        { elementId: "toArchive", needsMediaId: true },
+        { elementId: "unArchive", needsMediaId: true },
+        { elementId: "toFavorite", needsMediaId: true },
+        { elementId: "unFavorite", needsMediaId: true },
+        { elementId: "lock", needsMediaId: true },
+        { elementId: "unLock", needsMediaId: true },
         { elementId: "scrapeVideos" },
         { elementId: "testScrapeVideos" },
         { elementId: "testHeadCalls" }
@@ -2915,6 +2959,8 @@
         const apiSettings = getForm(".settings-form");
         if (!userConfirmation(action, filter)) return;
 
+        //TODO actually let user set filter for scraping videos
+        // but enforce type: video and if no filter requires extra metadata, add the lowerBoundarySize of 69bytes filter.
         if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
             source = "library";
             // force a hardcoded filter that returns all videos
@@ -2927,7 +2973,7 @@
             };
             
             if (actionId === "testScrapeVideos") {
-                // make query restrictive. Google will give results in 1 API call.
+                // make query restrictive without referencing certain metadata that require additional API calls
                 filter = {
                     ...filter,
                     "lowerBoundaryDate": "2024-11-12T15:25", 
