@@ -16,7 +16,8 @@ public class ShellMetadataReader : IMetadataReader
         { "{3147504D-0000-0010-8000-00AA00389B71}", "mpeg1video" },
         { "{30395056-0000-0010-8000-00AA00389B71}", "vp9" },
         { "{33564D57-0000-0010-8000-00AA00389B71}", "wmv3" },
-        { "{E06D8026-DB46-11CF-B4D1-00805F6CBBEA}", "MPEG-2 video" }
+        { "{E06D8026-DB46-11CF-B4D1-00805F6CBBEA}", "MPEG-2 video" },
+        { "{47504A4D-0000-0010-8000-00AA00389B71}", "Motion JPEG" }
     };
 
     public int Priority { get; init; } = 1;
@@ -30,7 +31,7 @@ public class ShellMetadataReader : IMetadataReader
             using var shellFile = ShellFile.FromFilePath(filePath.Replace("/", @"\"));
             var propertiesSystem = shellFile.Properties.System;
 
-            DateTime createdDate = propertiesSystem.Media.DateEncoded.Value ?? File.GetCreationTime(filePath);
+            DateTime? createdDate = propertiesSystem.Media.DateEncoded.Value;
 
             // Represents the actual play time of a media file and is measured in 100ns units, not milliseconds.
             long durationMs = (long)(propertiesSystem.Media.Duration?.Value / 10_000 ?? 0);

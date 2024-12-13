@@ -8,10 +8,11 @@ public class WritableMetadataAttribute : Attribute { }
 
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
-public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite) : Attribute
+public class MetadataFieldForWritingAttribute(string writerType, string fieldToWrite, string? fileExtension = null) : Attribute
 {
     public string WriterType { get; } = writerType;
     public string FieldToWrite { get; } = fieldToWrite;
+    public string? FileExtension { get;} = fileExtension;
 }
 
 // defines the properties of a video file that can be scraped and in some cases written
@@ -31,6 +32,7 @@ public record VideoMetadata
     [WritableMetadata]
     [MetadataFieldForWriting("ShellMetadataWriter", "System.Media.DateEncoded")]
     [MetadataFieldForWriting("FFMpegMetadataWriter", "creation_time")]
+    [MetadataFieldForWriting("FFMpegMetadataWriter", "ICRD", "avi")]
     public DateTime? CreatedDate
     {
         get => _createdDate;
@@ -70,7 +72,8 @@ public record VideoMetadata
 
         if (ffmpegAnalysis.Format?.Tags is Dictionary<string, string> tags)
         {
-            if (tags.TryGetValue("creation_time", out string? dateString))
+            // most formats have a "creation_time" tag; avi files have a "date" tag
+            if (tags.TryGetValue("creation_time", out string? dateString) || tags.TryGetValue("date", out dateString))
             {
                 CreatedDate = DateTime.Parse(dateString);
             }
@@ -144,12 +147,22 @@ public record VideoMetadata
     }
     
     // for a given metadata writer type and a given VideoMetadata property, get the name of the field to write to
-    public static string? GetMetadataWritableField(string writerType, PropertyInfo property)
+    // If a file extension is provided, prefer any attribute that specifies that extension
+    // otherwise return the default attribute which no file extension specified
+    public static string? GetMetadataWritableField(string writerType, PropertyInfo property, string? fileExtension = null)
     {
-        var attribute = property.GetCustomAttributes(typeof(MetadataFieldForWritingAttribute), false)
-                                .Cast<MetadataFieldForWritingAttribute>()
-                                .FirstOrDefault(a => a.WriterType == writerType);
+        var attributesForWriter = property
+                                    .GetCustomAttributes(typeof(MetadataFieldForWritingAttribute), false)
+                                    .Cast<MetadataFieldForWritingAttribute>();
+        var attribute = 
+            attributesForWriter.FirstOrDefault(a => a.WriterType == writerType && a.FileExtension?.ToLower() == fileExtension?.ToLower())
+            ?? attributesForWriter.FirstOrDefault(a => a.WriterType == writerType && a.FileExtension == null);
+                                
         return attribute?.FieldToWrite;
-
+    }
+    
+    public bool HasAnyValues()
+    {
+        return GetType().GetProperties().Any(p => p.GetValue(this) != null && (p.Name != "Codec" || (string?)p.GetValue(this) != "UNKNOWN_CODEC"));
     }
 }

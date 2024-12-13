@@ -32,8 +32,17 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             var reader = _availableReaders[readerIndex];
             try
             {
-                _logger.LogDebug("READ metadata using {readerType} for {filePath}", reader.GetType().Name, videoFile.Path);
+                _logger.LogDebug("READ metadata attempt using {readerType} for {filePath}", reader.GetType().Name, videoFile.Path);
                 var thisReaderMetadata = await reader.GetMetadataAsync(videoFile);
+                // check if thisReaderMetadata has any properties defined
+                if (thisReaderMetadata.HasAnyValues())
+                {
+                    _logger.LogInformation("SUCCESS: Read metadata from {filePath} using <{readerType}>", videoFile.Path, reader.GetType().Name);
+                }
+                else
+                {
+                    _logger.LogInformation("NOTHING READ: from {filePath} using <{readerType}>", videoFile.Path, reader.GetType().Name);
+                }
                 metadataCollected = metadataCollected?.FillMissingFrom(thisReaderMetadata) ?? thisReaderMetadata;
             }
             catch (Exception e)
@@ -60,7 +69,7 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
             var writer = _availableWriters[writerIndex];
             if (writer.CanWriteAny(metadata))
             {
-                _logger.LogDebug("WRITE metadata using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
+                _logger.LogDebug("WRITE metadata atttempt using <{writerType}> for {filePath}", writer.GetType().Name, videoFile.Path);
                 try
                 {
                     var writtenProperties = await writer.WriteMetadataAsync(videoFile, metadata);
@@ -75,7 +84,7 @@ public class MetadataHelper(ILogger<MetadataHelper> logger, IEnumerable<IMetadat
                         // null out the written property
                         foreach (var prop in writtenProperties)
                         {
-                            _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath}", prop, videoFile.Path);
+                            _logger.LogInformation("SUCCESS: Wrote {prop} to {filePath} using <{writerType}>", prop, videoFile.Path, writer.GetType().Name);
                             // null out the property just written
                             metadata.GetType().GetProperty(prop)?.SetValue(metadata, null);
                         }                    

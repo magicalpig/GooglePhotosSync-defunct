@@ -86,7 +86,7 @@ public class MetadataCopier(VideoContextFactory videoContextFactory, MetadataHel
                 }
                 else if (googleValue == localValue)
                 {
-                    _logger.LogInformation("{name}: Google video and Windows video already have the same value for {prop} property: {googleValue}", localVideo.Path, propToCopy, googleValue);
+                    _logger.LogDebug("{name}: Google video and Windows video already have the same value for {prop} property: {googleValue}", localVideo.Path, propToCopy, googleValue);
                     continue;
                 }
                         

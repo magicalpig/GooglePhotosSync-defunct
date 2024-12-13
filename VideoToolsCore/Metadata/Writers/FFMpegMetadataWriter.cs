@@ -5,7 +5,6 @@ using VideoToolsCore.Utilities;
 
 namespace VideoToolsCore.Metadata.Writers;
 
-
 public class FFMpegMetadataWriter() : MetadataWriterBase
 {
     public override HashSet<string> Capabilities { get; } =
@@ -14,18 +13,38 @@ public class FFMpegMetadataWriter() : MetadataWriterBase
         "CreatedDate"
     ];
 
-    public override async Task<List<string>> WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata metadata)
+    public override async Task<List<string>> WriteMetadataAsync(VideoFileWindows videoFile, VideoMetadata newMetadata)
     {
         List<string> writtenFields = [];
+        
+        // keep extension same otherwise ffmpeg might change container type
+        string? fileExtension = Path.GetExtension(videoFile.Path);
+        // remove period from extension
+        if (!string.IsNullOrWhiteSpace(fileExtension))
+        {
+            fileExtension = fileExtension[1..];
+        }
+        
+        // Special handling for AVI files
+        // FFMpeg does not retain created date even when using map metadata option.
+        // So if there's no created date assigned to the newMetadata object, the only way to retain the old value
+        // is to manually set it again on the new file (it lands in the "date" tag for AVI files)
+        if (string.Equals(fileExtension, "avi", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!newMetadata.CreatedDate.HasValue)
+            {
+                newMetadata.CreatedDate = videoFile.CreatedDate;
+            }
+        }        
 
-        string tmpOutputFileName = videoFile.Path + ".tmp.mp4";
+        string tmpOutputFileName = videoFile.Path + ".tmp." + fileExtension;
 
         List<string> metadataOptions = [];
         foreach (var prop in typeof(VideoMetadata).GetProperties())
         {
             // for each value of metadata that is not null
-            // confirm that the property is overwritable that this writer is capable of writing it
-            object? value = prop.GetValue(metadata);
+            // confirm that the property is overwritable and that this writer is capable of writing it
+            object? value = prop.GetValue(newMetadata);
             if (value == null || !VideoMetadata.IsPropertyWritable(prop) || !Capabilities.Contains(prop.Name))
             {
                 continue;
@@ -38,14 +57,15 @@ public class FFMpegMetadataWriter() : MetadataWriterBase
             {
                 value = str.Replace("\"", "\\\"");
             }
-            metadataOptions.Add($"-metadata {VideoMetadata.GetMetadataWritableField(nameof(FFMpegMetadataWriter), prop)}=\"{value}\"");
+            metadataOptions.Add($"-metadata {VideoMetadata.GetMetadataWritableField(nameof(FFMpegMetadataWriter), prop, fileExtension)}=\"{value}\"");
             writtenFields.Add(prop.Name);
         }
+      
 
         await Semaphores.FFMpegSemaphore.WaitAsync();
         try
         {
-            var success = await FFMpegArguments.FromFileInput(videoFile.Path)
+            var success = await FFMpegArguments.FromFileInput(videoFile.Path)                
                 .MapMetaData(0)
                 .OutputToFile(tmpOutputFileName, true, options => 
                 {
