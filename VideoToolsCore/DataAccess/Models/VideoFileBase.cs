@@ -38,15 +38,7 @@ public abstract class VideoFileBase : OwnableEntityBase
     public long? DurationMs
     {
         get => _metadata.DurationMs;
-        set => _metadata.DurationMs = value;
-        /*{
-            // setting DurationMs directly would result in infinite recursion
-            if (value.HasValue)
-            {
-                long nonNullValue = value.Value;
-                _metadata.DurationMs = nonNullValue;
-            }
-        }*/
+        set => _metadata.DurationMs = value;        
     }
 
     [FromGoogleRestApi]

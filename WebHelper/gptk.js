@@ -49,13 +49,13 @@
         </svg>Library</label>
     </div>
     <div class="source">
-      <input type="radio" name="source" id="search" class="sourceHeaderInput">
-      <label class="sourceHeader" for="search">
+      <input type="radio" name="source" id="query" class="sourceHeaderInput">
+      <label class="sourceHeader" for="query">
         <svg width="24px" height="24px" viewBox="0 0 24 24">
           <path
             d="M20.49 19l-5.73-5.73C15.53 12.2 16 10.91 16 9.5A6.5 6.5 0 1 0 9.5 16c1.41 0 2.7-.47 3.77-1.24L19 20.49 20.49 19zM5 9.5C5 7.01 7.01 5 9.5 5S14 7.01 14 9.5 11.99 14 9.5 14 5 11.99 5 9.5z">
           </path>
-        </svg>Search</label>
+        </svg>Keyword</label>
     </div>
     <div class="source">
       <input type="radio" name="source" id="user-provided" class="sourceHeaderInput" checked="checked">
@@ -175,14 +175,15 @@
         <details open class="paste-ids">
             <summary>Paste RPC IDs</summary>
             <textarea name="productIds" placeholder="Paste RPC IDs" rows="24" cols="40">
-                AF1QipN8j9TyABllfeKtXM5PXg-pQ05Sv5FYmYkaokOX
+                AF1QipPbzEPtfuWo0ZMgpN2WPT-td7nKa7V8u12PSuNN
+AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             </textarea>
 
         </details>
         <details open class="include-albums">
           <summary>Select Albums</summary>
           <fieldset>
-            <select size="5" multiple="multiple" class="select-multiple albums-select scroll" name="albumsInclude" required>
+            <select size="9" multiple="multiple" class="select-multiple albums-select scroll" name="albumsInclude" required>
               <option value="" title="First Album">Press Refresh</option>
             </select>
             <div class="select-control-buttons-row">
@@ -202,8 +203,8 @@
             </div>
           </fieldset>
         </details>
-        <details open class="search">
-          <summary>Search</summary>
+        <details open class="query">
+          <summary>Keyword</summary>
           <fieldset>
             <label class="form-control">
               <legend>Search Query:</legend>
@@ -214,7 +215,7 @@
         <details class="exclude-albums">
           <summary>Exclude Albums</summary>
           <fieldset>
-            <select size="5" multiple="multiple" class="select-multiple albums-select scroll" name="albumsExclude">
+            <select size="9" multiple="multiple" class="select-multiple albums-select scroll" name="albumsExclude">
               <option value="" title="First Album">Press Refresh</option>
             </select>
             <div class="select-control-buttons-row">
@@ -818,10 +819,10 @@
 
         if (filter.lowerBoundaryDate || filter.higherBoundaryDate) {
             const lowerBoundaryDate = filter.lowerBoundaryDate
-                ? new Date(filter.lowerBoundaryDate).toLocaleString("en-GB")
+                ? new Date(filter.lowerBoundaryDate).toLocaleString("en-US")
                 : null;
             const higherBoundaryDate = filter.higherBoundaryDate
-                ? new Date(filter.higherBoundaryDate).toLocaleString("en-GB")
+                ? new Date(filter.higherBoundaryDate).toLocaleString("en-US")
                 : null;
 
             if (filter.dateType === "taken") descriptionParts.push("taken");
@@ -936,6 +937,7 @@
             };
         }
 
+        // source was trash or album items or special case for attaching mediaId
         function itemBasicParse(rawItemData) {            
             return {
                 productId: rawItemData?.[0],
@@ -1133,7 +1135,7 @@
             }
         }
 
-        async search(searchQuery, pageId = null, parseResponse = true) {
+        async keywordSearch(searchQuery, pageId = null, parseResponse = true) {
             const rpcid = "EzkLib";
             const requestData = [searchQuery, null, pageId];
             try {
@@ -1141,7 +1143,7 @@
                 if (parseResponse) return parser(response, rpcid);
                 return response;
             } catch (error) {
-                console.error("Error in search:", error);
+                console.error("Error in keywordSearch:", error);
                 throw error;
             }
         }
@@ -1188,15 +1190,22 @@
         // only works on 1 item at a time
         // but must take an array and return an array because being called through executeWithConcurrency
         async attachMediaId(mediaItems) {
-            const rpcid = "VrseUb";
+            const rpcid = "VrseUb"; //
             const productId = mediaItems[0].productId;
             try {
                 const requestData = [productId, null, null, 1];
-                let response = await this.makeApiRequest(rpcid, requestData);
-                response = response[0];                
-                return [parser(response, rpcid)];
+                
+                const response = await this.makeApiRequest(rpcid, requestData);
+                // response is an array but should only have 1 item
+                const responseOne = response[0];
+                // parser will be itemBasicParse which provides
+                //     productId, dateTaken, mediaId, dateUploaded, duration
+                const newMediaItem = parser(responseOne, rpcid);
+                const mergedMediaItem = { ...mediaItems[0], ...newMediaItem };
+                // array return expected by executeWithConcurrency
+                return [mergedMediaItem];
             } catch (error) {
-                console.error("Error in getItemByProductId:", error);
+                console.error("Error in attachMediaId:", error);
                 throw error;
             }
         }
@@ -1575,7 +1584,7 @@
                     nextPageId
                 );
                 if (!page?.items) {
-                    log("No items found!", "error");
+                    log(`No items found by getAllItems calling ${apiMethod.name}!`, "error");
                     return [];
                 }
                 items.push(...page.items);
@@ -1612,8 +1621,8 @@
             return await this.getAllItems(this.api.listFavorites);
         }
 
-        async getAllSearchItems(searchQuery) {
-            return await this.getAllItems(this.api.search, searchQuery);
+        async getAllKeywordSearchItems(searchQuery) {
+            return await this.getAllItems(this.api.keywordSearch, searchQuery);
         }
 
         async getAllLockedFolderItems() {
@@ -1797,7 +1806,56 @@
             return true;
         }
 
+
+        
+        // returns a map from productIds to durations.
+        // 1. get favories and unfavorite them
+        // 2. call set favorite on the media items lacking durationMs
+        // 3. call get favorites again, parsing the results to find the duration
+        async getDurations(mediaItems) {
+            log("Getting durations for media items by setting them as favorites");
+            // clear the existing favorites
+            //TODO: I could check if all passed-in mediaItems are already favorites
+            // and/or just get all favorites which could be more items than I'm interested in.
+            log("Clearing existing favorites");
+            const favorites = await this.getAllFavoriteItems();
+            await this.unFavorite(favorites);
+            
+            // just in case stale info says any are favorites
+            mediaItems.forEach(item => item.isFavorite = false);
+
+            log("Setting media items as favorites to get durations");
+            await this.setAsFavorite(mediaItems);
+            log("Reading back the favorites to get durations");
+            const newFavorites = await this.getAllFavoriteItems();
+
+            const durationMappings = {};
+            newFavorites.forEach((item) => {
+                durationMappings[item.productId] = item.duration;
+            });
+            return durationMappings;
+        }
+        
         async sendMediaItemsToServer(mediaItems) {            
+
+            // There are possible situations where we do not have duration
+            //  These are the only cases where we DO have it:
+            //  source=library and there is a date taken condition (low and high dates can be blank) OR
+            //  source=query (keyword search) OR
+            //  source=favorites OR
+            //  source=album
+            //  source=user-provided product ids in which case we call attachMediaId which also gives the duration
+
+            //TODO: confirm we'll have mediaId for every source type.
+            const durationMappings = await this.getDurations(mediaItems.filter(m => !m.durationMs));
+            mediaItems
+                .filter(m => !m.durationMs)
+                .forEach(m => {                
+                    m.durationMs = durationMappings[m.productId];
+                });
+
+
+
             // reduce media items to properties we care about and with property names matching the
             // schema of the WebHelper API's RpcScrapedVideo object.
             // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
@@ -1806,7 +1864,7 @@
                     size: item.size,
                     durationMs: item.duration || item.durationMs,
                     googleId: item.googleId, // would only be present on recursive call to this function, after doing REST ID lookups
-                    rpcId: item.productId || item.rpcId,
+                    rpcId: item.productId || item.rpcId, // item would have rpcId on recursive call to this function
                 };
             });
 
@@ -1867,9 +1925,7 @@
                 // 
                 // I can let exceptions bubble up to executeWithConcurrency,
                 // I can remove the throttling. executeWithConcurrency will handle that (using maxConcurrentApiReq)
-                let idMappings = await this.getRpcIdMappings(
-                    data.recordsWithNoRpcId
-                );
+                let idMappings = await this.getRpcIdMappings(data.recordsWithNoRpcId);
                 if (Object.keys(idMappings).length > 0) {
                     let fixedMediaItems = Object.keys(idMappings)
                         .map((rpcId) => {
@@ -1881,14 +1937,7 @@
                                 (item) => item.rpcId === rpcId
                             );
                             if (mediaItem === undefined) {
-                                log(
-                                    "Mapped REST ID " +
-                                        restId +
-                                        " to rpc ID " +
-                                        rpcId +
-                                        " but scrape did not give a media item with this rpc ID",
-                                    "error"
-                                );
+                                log(`Mapped REST ID ${restId} to rpc ID ${rpcId} but scrape did not give a media item with this rpc ID`, "error");
                             }
                             return { ...mediaItem, googleId: restId };
                         })
@@ -1946,7 +1995,7 @@
         let options = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
 
         // Formatted time string
-        return date.toLocaleTimeString("en-GB", options);
+        return date.toLocaleTimeString("en-US", options);
     }
     function timeToHHMMSS(time) {
         const seconds = Math.floor((time / 1000) % 60);
@@ -1981,9 +2030,9 @@
                 // This is the default path for library queries even if no date range entered.
                 else if (filter.dateType === "taken")
                     mediaItems = await this.getLibraryItemsByTakenDate(filter);
-            } else if (source === "search") {
-                log("Reading search results");
-                mediaItems = await this.apiUtils.getAllSearchItems(
+            } else if (source === "query") {
+                log("Reading keyword search results");
+                mediaItems = await this.apiUtils.getAllKeywordSearchItems(
                     filter.searchQuery
                 );
             } else if (source === "trash") {
@@ -2095,6 +2144,8 @@
             if (mediaItems?.length && filter.type)
                 mediaItems = this.filterByMediaType(mediaItems, filter);
 
+            // makes a call to the EWgK9e RPC endpoint to get additional metadata, including size,
+            // needed for additional filtering. Results are parsed by itemBulkInfoParse
             if (
                 mediaItems?.length &&
                 (filter.space ||
@@ -2104,13 +2155,12 @@
                     filter.fileNameRegex ||
                     filter.descriptionRegex)
             ) {
-                mediaItems = await this.extendMediaItemsWithMediaInfo(
-                    mediaItems
-                );
+                mediaItems = await this.extendMediaItemsWithMediaInfo(mediaItems);
+                
                 if (mediaItems?.length && filter.fileNameRegex)
                     mediaItems = this.fileNameFilter(mediaItems, filter);
                 if (mediaItems?.length && filter.descriptionRegex)
-                    mediaItems = this.desctiptionFilter(mediaItems, filter);
+                    mediaItems = this.descriptionFilter(mediaItems, filter);
                 if (mediaItems?.length && filter.space)
                     mediaItems = this.spaceFilter(mediaItems, filter);
                 if (mediaItems?.length && filter.quality)
@@ -2125,6 +2175,7 @@
         }
 
         // More metadata needed when user wants to filter by filename, description, space used, quality, or size
+        // Does NOT return duration
         async extendMediaItemsWithMediaInfo(mediaItems) {
             const mediaInfoData = await this.apiUtils.getBatchMediaInfoChunked(
                 mediaItems
@@ -2330,7 +2381,7 @@
             return mediaItems;
         }
 
-        desctiptionFilter(mediaItems, filter) {
+        descriptionFilter(mediaItems, filter) {
             log("Filtering by description");
             const regex = new RegExp(filter.descriptionRegex);
             if (filter?.descriptionMatchType === "include")
@@ -2536,7 +2587,12 @@
                     apiSettings
                 );
 
-                if (source === "user-provided" && action.needsMediaId) {
+                // all we have is the productId (RPC ID) but the action will need mediaId
+                // I'm pretty sure every other source will have provided mediaId
+                // scrapeVideos doesn't technically need mediaId, but for the case of user-provided IDs, we're 
+                // going to need to grab duration which involves setting the items as favorites and then reading 
+                // the favorites (which requires mediaId)
+                if (source === "user-provided" && (action.needsMediaId || action.elementId === "scrapeVideos")) {
                     mediaItems = await this.apiUtils.executeWithConcurrency(
                         this.api.attachMediaId,
                         (result) => Array.isArray(result) && result[0]?.mediaId,
@@ -2661,7 +2717,7 @@
                 pasteIds: document.querySelector(".paste-ids"),
                 includeAlbums: document.querySelector(".include-albums"),
                 owned: document.querySelector(".owned"),
-                search: document.querySelector(".search"),
+                query: document.querySelector(".query"),
                 favorite: document.querySelector(".favorite"),
                 quality: document.querySelector(".quality"),
                 size: document.querySelector(".size"),
@@ -2685,11 +2741,11 @@
             if (isActiveTab("albums")) {
                 toggleVisibility(filterElements.includeAlbums, true);
             }
-            if (["library", "search", "favorites"].some(isActiveTab)) {
+            if (["library", "query", "favorites"].some(isActiveTab)) {
                 toggleVisibility(filterElements.owned, true);
             }
-            if (isActiveTab("search")) {
-                toggleVisibility(filterElements.search, true);
+            if (isActiveTab("query")) {
+                toggleVisibility(filterElements.query, true);
                 toggleVisibility(filterElements.favorite, true);
                 toggleVisibility(filterElements.archive, true);
             }
@@ -2957,11 +3013,30 @@
 
         // Parsed settings object
         const apiSettings = getForm(".settings-form");
-        if (!userConfirmation(action, filter)) return;
 
-        //TODO actually let user set filter for scraping videos
-        // but enforce type: video and if no filter requires extra metadata, add the lowerBoundarySize of 69bytes filter.
-        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
+        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {                    
+            // if RPC IDs specified by user, we want to prevent filtering of the preliminary results
+            // as they will only contain the productId in this case.
+            if (source !== "user-provided") {
+                // for testing, get a small dataset by using a condition the initial RPC call can handle
+                if (actionId === "testScrapeVideos") {                
+                    filter = {                    
+                        "lowerBoundaryDate": "2024-11-12T15:25", 
+                        "higherBoundaryDate": "2024-12-26T15:28",
+                        "intervalType": "include"
+                    };
+                }
+
+                filter.type = "video";
+            }
+            
+            // this is how we ensure file size is attached to the media items
+            // it's a filter performed against the preliminary by invoking the EWgK9e endpoint
+            if (!filter.space && !filter.quality && !filter.lowerBoundarySize && !filter.higherBoundarySize && !filter.fileNameRegex && !filter.descriptionRegex) {
+                filter.lowerBoundarySize = 69;
+            }
+        }
+        else if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
             source = "library";
             // force a hardcoded filter that returns all videos
             // The condition on size will force additional RPC calls to obtain file size.
@@ -2992,10 +3067,23 @@
         }
         // alter form such the media search action is fast
         else if (actionId === "testHeadCalls") {
-            source = "search";
+            source = "query";
             filter = {
                 "searchQuery": "Schenectady"
             };            
+        }
+        
+        if (!userConfirmation(action, filter)) return;
+        
+        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
+            // abort mission if my web api is not running
+            log("Confirming web server is running");
+            if (await apiUtils.confirmWebServerRunning()) {
+                log("Web server is running");
+            } else {
+                log("Web server is not running", "error");
+                return;
+            }
         }
 
         // Disable action bar while process is running

@@ -37,6 +37,13 @@ public class FFMpegMetadataWriter() : MetadataWriterBase
             }
         }        
 
+        // TODO 3gp files don't retain Title when copied to a new file by ffmpeg.
+        // The resulting file does not show a title in ffprobe but does in mediainfo and exiftool.
+        // For now, with only Description and CreatedDate being copiable, this is not a problem because
+        // the ShellMetadataWriter succeeds on both for a 3gp. But if I needed to use ffmpeg, the resulting
+        // file would lose its title, or at least it would not have a title visible by ffprobe or Windows shell.
+
+
         string tmpOutputFileName = videoFile.Path + ".tmp." + fileExtension;
 
         List<string> metadataOptions = [];
