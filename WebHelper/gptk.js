@@ -1548,7 +1548,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     promisePool.shift();
                 }
 
-                log(`Processing ${chunk.length} items`);
+                log(`Sending a chunk of size ${chunk.length} items into ${apiMethod.name}`);
 
                 const promise = apiMethod.call(this.api, chunk, ...args); // Call apiMethod with correct context
                 promisePool.push(promise);
@@ -1813,13 +1813,16 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         // 2. call set favorite on the media items lacking durationMs
         // 3. call get favorites again, parsing the results to find the duration
         async getDurations(mediaItems) {
+            if (!mediaItems.length)
+                return;
             log("Getting durations for media items by setting them as favorites");
             // clear the existing favorites
             //TODO: I could check if all passed-in mediaItems are already favorites
             // and/or just get all favorites which could be more items than I'm interested in.
             log("Clearing existing favorites");
             const favorites = await this.getAllFavoriteItems();
-            await this.unFavorite(favorites);
+            if (favorites.length)
+                await this.unFavorite(favorites);
             
             // just in case stale info says any are favorites
             mediaItems.forEach(item => item.isFavorite = false);
@@ -1970,23 +1973,42 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
 
 
         async testHeadCalls() {
-            await this.getRpcIdMappings([
-                'APdo2mw0WlJdjGgfA865SmB9yK7xOkjuc8aPLKOKeaOgyVAVY7Je_7f8sXdp9Oqstdt5ay4ZlwZAY1_46PLKm4PiKW8ojEoMAg',
-                'APdo2mzP5kW4z53nbdqamhnToA3f4OwZNzn5zqERMHewK4HUKcJ2rL65MdkTUcMGy8LrCnlVxg0OxElceotyXVQbUoREUC3vhg',
-                'APdo2mwzrANpsFCwHhegkQnOKNT0dMcRJ5HSF14dhCLFKXD1MgHmsGyKARwDcMd9cbnt8oWt_M-m1pwJ72xYuDa9rMnCcoDcgw',
-                'APdo2mwux2oCnvQro5ysHaDAw5s6wQaHr2tKQHZdlQ2scbJ4CQeIxXHyj_JsQG2emMGeqesU7snzjAvRLJwcErRLKj7dcPECmw',
-                'APdo2myyV4uUO8ufEige8KYBFyU4vCvLJfjIDb86-tihjxjPced-nnEU7s5qn2MJGoGzcXXvESZbYhKMki9-CtFudV4vGy9dGQ',
-                'APdo2mwld0aAIofMJ-FOVvJJSIgI2yp-hTVXAdxLQMKUNRZK01TAxPhmboi8P5t4MB3lxU2nldw8BHcOJP92IcTZ4K8hg2Ry2w',
-                'APdo2mxYvh_Q3bXgUh0BwFPKD1nEGNu1Sd-Hv5jJz7kOkPWcW98Eilol7QOaUa9JHcr2gA8AscEP88opfudA7QqaKxlPcQBNTA',
-                'APdo2mzKtpcLLO5sYRyHgUS2dxR3sheXGi2SV8DXLDfJJWQ7van_3Op6h-RF4CQstDVMcdizTAcNxsNjMDtFVO_Xoij5RW5Rgw',
-                'APdo2mzq8qYjNv2h5Xp213ku8-INI9biG-v3iGLs6zWMQWbHAHC7pyqknTJWBlq3nWsdzg_mSKDvoeLl_VcP6Ew7auVE2mcqxA',
-                'APdo2mzNnurYtkKe8bo6f615q7uQoYpmfNwjKn35qPKVmFHc48XJ5OIfE93t16zMtQn31sLa6JaU1IlHJ6ZtfzE1sHBN8fl2Uw',
-                'APdo2myDoLqj4MU_gqneE-kD3EsH_4k5wKWhcQF91QJO0v58ROklIC3XE7DoHoCSOLQSgIDDvyRh2wxd8-qUi0C8ZUYpdq5L4g',
-                'APdo2mxvjTRMn8lwmX1dYpUhRd8cOTeGhpJAy8TyM8Zzh8Gkh450Yx07u3HCHDBDCFIRKv9QlxH4fstiVV6rvCHiu2SjzndXbw',
-                'APdo2mxjdhEAYozVNsMxqiH6rRRkMJ1WE5PUg3X8UY9INfSkrzqYhY4XoCAY4qmebXUgpN3ceDq62YMcyQNqTrwJkjpPKs_mRQ',
-                'APdo2mzQ1k70b5Nss9DmOL0IrX5eErrsGp11F4iORxKiTRjS3lhNxtQAWM1jGS9ENUGCOwwhipMr01ttkgJ_er4-K8TArRCzLA',
-                'APdo2myEijK_SmLjt4Dg59cWQO4W-OGv0NIjA5IAEgnxY7yHykRjH6iMgJCBVniYu6gA_SmQ6Xratrz3Bp0kW2heycPif1DXIw'
-            ]);           
+            let idMappings = await this.getRpcIdMappings([
+               'APdo2mw_i6s4nVRvGcXCHUGApzTu-SmyQP92mmnTCKX_e69hUFxBZM10PAWMIlx84-M53cWeXlVUmhlZDiP3IUyw3I1-ly4Jhw',
+                'APdo2mw-GrLj4iFzXa8U0l_2ir0CkC6V7l3Vl8cqSUc5FtqfmUiFaPMGNaCcrGKoCYmDRdC67C8GN8SzHxSC0VZnBGPI_j2oVA',
+                'APdo2mw4NqXETrdTFWqzSi8RSk8iocY2TLdlVb0xghB_bJ_yl3_5y462T5V903iBRDVGbqwMrsSspfPUdBIy-4o5aqC7bDqp6w',
+                'APdo2mwCPc22nIXUuFTk0GC-ebASmMqlfFat5XTtIpCdbK825BvtSmJ1R0SXmw5OSFdLL5silgY2F4UetRv9qPRls1ttAAm8jA',
+                'APdo2mwLU3sViECxEOjBjkpr_ktUTKe8LG6kUu5jnD9RdqhZ7oGn53_o59KFNj3-5GC7uKpEMO6Ft_JT5iBrMsyRd3SInteEiA',
+                'APdo2mwqBctZkndYMqkgv5rVLuyfYXQRu2cJK3fdzr0Aod4Gi-O56bX4v5tDvmoJLA-w6m2k2kCda7-ZWm6LaqfxF29sVqpo9w',
+                'APdo2mwtH0PWTplVBpJd_JIPgZwS85RjLZHJpufFc0ILslogihaoHA4TFnQse0xJnqnjvj8eUX6pZUgHaa3ZyJGxseZ_ePOhGw',
+                'APdo2mwUO1cWf-R5Qr2TtRMp3TcT7zlX6JL9SZ6hGa1eEu0zWP-YmDl1JNE6R0WI3isrAtuPip2dfaIawZkpw7y77bp5zyit2A',
+                'APdo2mxAXf7o2SbREsKiBy0p6-YaqlDA_r6YUFWjsp5qIolvKlwbCQHAQb2GO1OBfKPJrJIs83jC_6chA8cJ4aHBQlvXsBgTVw',
+                'APdo2mxbxHBiDbyKykr8376HXskm45sK79A2Vml0Fss6vJCwhSF35d39FMD021W4-JbG03FnO2T47-AkC7HkfO1DQHSAo6CAww',
+                'APdo2mxG_zNFlPNbkKP4FcHkoYF-SNaVWsIPtWyOLiQM4tK0IaUk9q1atznEd1HPc7v6iDIxVwmCxQA841d06AyW1bU4xdq7Rg',
+                'APdo2mxiTdqWM2cEj1l0oaOsEgkZuP81qVCXDE2ftNO0M5GB9mYgNSy889eJWCTVudn6vs3_wUS_8Mh_-vzJvsNctpJvlw4ZiA',
+                'APdo2mxmmSZok5KL_6kcXreZEjfOeF-JQmt_WRZ7ebnjdchhMSzvOaU48UoR5WAV_mPdd4U_0OcaUd1umYyr463PscXbtgfz5g',
+                'APdo2mxMRBgHugmqKnoN376b8HqJ6TJJ53j4WXyRQCxg6qBr-Bzyiom0l0uBVpyjaTs_4Bavrcgj3Uh6wEBxgfiMRJ-ZMcO_cQ',
+                'APdo2mxPc-0StDjiSqH8hiVRGQ-dkGkLKR4F-8L96dpst2_2CwTxAThTD0_CZE-kMy8Vi3scRY0GYO4lwMWNBezaHqMMNmHDsQ',
+                'APdo2mxpsCiGJlN7AS0eh5El3dtvc7nVzukywejblsKVaNvnmjW9cwrUb1t6q1OfXrH5fiyDxiZXm6Xm_nxx95vfiALLeUQMRQ',
+                'APdo2mxR8Q0rgF68FKXe5Vm37nQNtbQM2vrqI9DvylP9gHuthB6r84WqtoaxHBOcxRa9qtmVFz4XAGrBm8K0aryCx7SYYcErzA',
+                'APdo2mxtxmSZ99oLfVwamTVxPu7KxdzGi7dNMZnWYul4FC1ZlUCHxwWWvzBANf9lnA88tV5waMhYr9rIxV545DaJPXqX-FDGvw',
+                'APdo2mxVy9d9sVMdUfah2GrcHecAj_x3qX6mD-HUD_oujeoJarFxKhUJqI5PbRNY3HrLttf6asMzBn7QtJxUOLPUdBFdH76eFA',
+                'APdo2mxzEJqYi1tEbPlYUADwL4uv6a_reD0FmIGOTqBsoRJ_5p-89oYtZvrdqCUXZJ_5m-uHauUyscJtb1iyB7JmKjfGjaYAcg',
+                'APdo2myn1DhhTBf8Yaapuv6V87wagH8xFsOQidTTGer6gaEyJ94wRRw3KjCNhUoILuxXZIoOFVFT9EEiubNxKzcuLsy8M3PS4A',
+                'APdo2mypL-hPVoBeRfezVI2ehRN8Ko5RmcBHpn7veQfqaQITDHuUhFpwb612Jg5OD9kxubZ8vUrm0Nin3tiu_iPj9nW-RUswPw',
+                'APdo2myPT5Sd4dHdTNLgHu8geQSW19_a1Z3r7hacBqBNjmJnw7MQjrUBock41C5OnG_-aXUvG2vHWJVZVTv4ErLslF0ucQozeA',
+                'APdo2mysGvvxJy6vojw6IwxImeB1VbaH2Z2LOAMHIzzepnk2-pJ9EHgwFTx4sfYJf92kRS1F55BSk9QGoTjZ01on1Lcj0Qm5mA',
+                'APdo2myt5qOyyVpUiE1wY-SII8exaxmWHB7eAIXhNLwdiUS_WoJQ0F6rY56dWhN9qtEsHb5NmWqiBkz47FOCiZwPhEiL6Al91Q',
+                'APdo2myY7LbhLRBk0VVyBeSZNH62S0VUjI17I5pHYEXFLxNZM2WZJcggNjKHnYsv4lOlb6ypM4oybZLiOrIjQpFgk9BfdFyVJg',
+                'APdo2myZgoe8-fss2Qd7U60jmDFjGCXrNJDAEBYVlzuuRDyIy1HP9nCzFwnYCbaqPIO_j1IAjxLqHI-_2vpPfgIhzvgMKgx9bw',
+                'APdo2mz1dQElzovowNeKFO2Qype6Uu7zPeVOgF0yzRg1B57slzfPd6hfof-AvqygGWtp-2p8OcF2FIjZLaOtmnluWxgGKuuxVw',
+                'APdo2mz1MRMQp3HXKXr2mSFJStXfIYuMj7KnGj2qfSopoP500ptj8hsWcD3gRWHvG7deG-y0m1T2qMdwF0gD51zPtOhW6WTWnw',
+                'APdo2mzHSxn_2E8o5FkPnbE-wHZq8auxKOEkkI87kFfxWVKf5Z7oMPbcJ9QFmL9UMFpyBCZH0Hd5dU4dal6TdECmZA-6rTanJg',
+                'APdo2mziKzGdIO7MfNKiUGi26uG4vR2CI08raErh0kWTqH1nfR7U-mFShAPwoS2WWXSHURPyHjnp9Vgv93r7uTEiS1hLiM0BYQ',
+                'APdo2mzLt-9m6Yy1awLdw6vIqOeE2slbqjAIJfWN7smSzgPTW8Q06ds3sz-aWSPdEDI9zUrn86NhmADWnxpPUXjeGDtu4jwLjQ',
+                'APdo2mzMPP2vJ48Lpr1XvM-VBHzhRnyik0EGVlubTXK_k5OC6FZ4d5m4lzrHTozwBCioB6dTp2Rje_siOU1AWejwqQoCfif4pA'
+            ]);    
+            console.log(idMappings);       
         }
     }
 
