@@ -105,11 +105,11 @@ The GP REST API doesn't expose video filesize, duration, or URL. To get these me
 
 This GPTK script makes use of the poorly documented "batchExecute" RPC API of Google Photos. There are certain operations you could ask it to do that will cause it to query the RPC API for information about all videos. I made modifications to the script so it will collect metadata about all videos and post the result to the web server app included in this solution. This is triggered by the "Scrape Videos" button I added.
 
-Where things get tricky is in the fact that this RPC API uses a different ID than what is used by the REST API. GPTK.js will call this ID "productId". The browser will send videos to our web server app identifying each video by its `productID` which will have been moved into a property called `rpcId`. The web server app will try to locate a record by matching the `rpcId` parameter with the database's `RpcId` column. 
+Where things get tricky is in the fact that this RPC API uses a different ID than what is used by the REST API. GPTK.js will call this ID "productId". The browser will send videos to our web server app identifying each video by its `productID`. The web server app will try to locate a record by matching this productId parameter with a database record. 
 
-If it does not find a match, it will check if there are any records for videos that have a REST API ID (obtained by `GoogleScraper`) but no `RpcId`. If there are any such records, the web server app will return a response contained those REST API IDs. The gptk.js code will then iterate over those REST API IDs, making HEAD requests for each one and reading the response will will contain a redirect to a URL based off the RPC API ID. This is how we get the mapping between REST API ID and RPC API ID. 
+If it does not find a match, it will check if there are any records for videos that have a REST API ID (obtained by `GoogleScraper`) but no `ProductId`. If there are any such records, the web server app will return a response contained those REST API IDs. The gptk.js code will then iterate over those REST API IDs, making HEAD requests for each one and reading the response will will contain a redirect to a URL based off the Product ID, ProductId. This is how we get the mapping between REST API ID and Product ID. 
 
-With any newly discovered pairing between a REST API ID and an RPC API ID, the GPTK script resend the videos to the web server app, this time including both ID types. The web server app will be able to locate a record in the database using the REST API ID and set the newly scraped metadata as well as the RPC API ID.
+With any newly discovered pairing between a REST API ID and a product ID, the GPTK script resend the videos to the web server app, this time including both ID types. The web server app will be able to locate a record in the database using the REST API ID and set the newly scraped metadata as well as the Product ID.
 
  
 

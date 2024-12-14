@@ -173,8 +173,8 @@
           </div>
         </div>
         <details open class="paste-ids">
-            <summary>Paste RPC IDs</summary>
-            <textarea name="productIds" placeholder="Paste RPC IDs" rows="24" cols="40">
+            <summary>Paste IDs</summary>
+            <textarea name="hardcodedIds" placeholder="Paste IDs" rows="24" cols="40">
                 AF1QipPbzEPtfuWo0ZMgpN2WPT-td7nKa7V8u12PSuNN
 AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             </textarea>
@@ -852,8 +852,8 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             }
         }
 
-        if (filter.productIds) {            
-            descriptionParts.push(`with any of ${textareaValueToArray(filter.productIds).length} hardcoded RPC IDs`);            
+        if (filter.hardcodedIds) {            
+            descriptionParts.push(`with any of ${textareaValueToArray(filter.hardcodedIds).length} hardcoded IDs`);            
         }
 
         let filterDescriptionString = descriptionParts.join(" ");
@@ -1436,9 +1436,9 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             }
         }
 
-        // returns array of tuples [rpcId, restId]
+        // returns array of tuples [productId, restId]
         // There should only be 1 tuple returned for each call because batch size should always be 1
-        async convertRestIdsToRpcIds(restIds) {
+        async convertRestIdsProductIds(restIds) {
             const urlBase = "https://photos.google.com/lr/photo/";
             
             const tuples = [];
@@ -1451,12 +1451,12 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     const newUrl = response.url;
                     const matches = newUrl.match(/\/([^\/]+)$/);
                     if (matches) {
-                        const rpcId = matches[1];
-                        log(`REST ID ${restId.slice(0, 7) + "..." + restId.slice(-10)} maps to RPC ID ${rpcId}`);
-                        tuples.push([rpcId, restId]);
+                        const productId = matches[1];
+                        log(`REST ID ${restId.slice(0, 7) + "..." + restId.slice(-10)} maps to Product ID ${productId}`);
+                        tuples.push([productId, restId]);
                     }
                     else {
-                        log(`No RPC ID found for REST ID ${restId}`, "error");
+                        log(`No Product ID found for REST ID ${restId}`, "error");
                     }
                 } catch (error) {
                     log(
@@ -1790,7 +1790,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             try {
                 let userId = window.WIZ_global_data.oPEP7c;
                 let response = await fetch(
-                    "http://localhost:5222/api/RpcScrapedVideos",
+                    "http://localhost:5222/api/WebScrapedVideos",
                     {
                         method: "GET",
                         headers: {
@@ -1860,14 +1860,15 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
 
 
             // reduce media items to properties we care about and with property names matching the
-            // schema of the WebHelper API's RpcScrapedVideo object.
+            // schema of the WebHelper API's WebScrapedVideo object.
             // On the recursive call to this function, the properties of incoming mediaItems will have already had names changed
             let minimalMediaItems = mediaItems.map((item) => {
                 return {
                     size: item.size,
                     durationMs: item.duration || item.durationMs,
-                    googleId: item.googleId, // would only be present on recursive call to this function, after doing REST ID lookups
-                    rpcId: item.productId || item.rpcId, // item would have rpcId on recursive call to this function
+                    restId: item.restId, // only present if IDs were pasted as the data source,
+                                             // or this is the recursive call to this function
+                    productId: item.productId
                 };
             });
 
@@ -1878,7 +1879,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             let userId = window.WIZ_global_data.oPEP7c;
             try {
                 response = await fetch(
-                    "http://localhost:5222/api/RpcScrapedVideos",
+                    "http://localhost:5222/api/WebScrapedVideos",
                     {
                         method: "POST",
                         headers: {
@@ -1902,78 +1903,69 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                 throw error;
             }
 
-            // Continue function only if the server's response indicates it has records missing RPC ID.
-            // recordsWithNoRpcId is a list of REST IDs for such database records.
-            if (!data.recordsWithNoRpcId?.length > 0) {
+            // Continue function only if the server's response indicates it has records missing Product ID.
+            // recordsWithNoProductId is a list of REST IDs for such database records.
+            if (!data.recordsWithNoProductId?.length > 0) {
                 if (data.recordsNotFound?.length) {
                     alert(
-                        "Some records could not be updated because there was no match for their RPC ID.\n" +
-                        "Normally we'd offer to try to convert REST IDs to RPC IDs for these records, but the server didn't indicate any records were missing RPC ID.\n" +
+                        "Some records could not be updated because there was no match for their Product ID.\n" +
+                        "Normally we'd offer to try to convert REST IDs to Product IDs for these records, but the server didn't indicate any records were missing Product ID.\n" +
                         "This might mean you need to run GoogleScraper."
                     );
                 }
                 return;
             }
 
-            const shouldGetRpcIds = await getUserConfirmationInModal(
-                `There were ${data.recordsWithNoRpcId.length} records in the database with no RPC ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to RPC IDs ?`
+            const shouldGetProductIds = await getUserConfirmationInModal(
+                `There were ${data.recordsWithNoProductId.length} records in the database with no Product ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to Product IDs ?`
             );
-            if (shouldGetRpcIds) {
-                // of these id mappings are for db records having REST ID but no RPC ID.
-                //TODO use this.executeWithConcurrency passing in 
-                // this.as the api method,
-                // a new function for the success check of each batch,
-                // a batch size of 1,
-                // and data.recordsWithNoRpcId as the itemsArray
-                // 
-                // I can let exceptions bubble up to executeWithConcurrency,
-                // I can remove the throttling. executeWithConcurrency will handle that (using maxConcurrentApiReq)
-                let idMappings = await this.getRpcIdMappings(data.recordsWithNoRpcId);
+            if (shouldGetProductIds) {
+                let idMappings = await this.getProductIdMappings(data.recordsWithNoProductId);
                 if (Object.keys(idMappings).length > 0) {
                     let fixedMediaItems = Object.keys(idMappings)
-                        .map((rpcId) => {
-                            const restId = idMappings[rpcId];
+                        .map((restId) => {
                             // try to attach REST ID to media items that failed to update a record on first attempt.
-                            // it could also be the case that the rpc id does not correlate to a media item sent on first attempt
+                            // it could also be the case that the product id does not correlate to a media item sent on first attempt
                             // but we still want to let the server know of the id mapping
                             const mediaItem = minimalMediaItems.find(
-                                (item) => item.rpcId === rpcId
+                                (item) => item.restId === restId
                             );
                             if (mediaItem === undefined) {
-                                log(`Mapped REST ID ${restId} to rpc ID ${rpcId} but scrape did not give a media item with this rpc ID`, "error");
+                                log(`Mapped REST ID ${restId} to Product ID ${productId} but scrape did not give a media item with this Product ID`, "error");
                             }
-                            return { ...mediaItem, googleId: restId };
+                            return { ...mediaItem, restId: restId };
                         })
-                        .filter((g) => g.rpcId && g.googleId);
+                        .filter((g) => g.productId && g.restId);
                     // send the fixed media items to the server
                     this.sendMediaItemsToServer(fixedMediaItems);
                 }
             }
         }
 
-        // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using RPC ID
-        async getRpcIdMappings(restIds) {
-            log(`Starting HEAD requests to convert ${restIds.length} REST IDs to RPC IDs`);
+        // returns { productId: restId } dictionary
+        // Make HEAD requests to URLs pointing at REST IDs expecting redirects to URLs using Product ID
+        async getProductIdMappings(restIds) {
+            log(`Starting HEAD requests to convert ${restIds.length} REST IDs to Product IDs`);
             const isSuccess = (result) => Array.isArray(result);
             const tuples = await this.executeWithConcurrency(
-                this.api.convertRestIdsToRpcIds,
+                this.api.convertRestIdsProductIds,
                 isSuccess,
                 1,
                 restIds
             );
             
-            // convert the [rpcId, restId] tuples to a dictionary
+            // convert the [productId, restId] tuples to a dictionary
             const newMappings = {};
             tuples.forEach((tuple) => {
-                const [rpcId, restId] = tuple;
-                newMappings[rpcId] = restId;
+                const [productId, restId] = tuple;
+                newMappings[restId] = productId;
             });
             return newMappings;
         }
 
 
         async testHeadCalls() {
-            let idMappings = await this.getRpcIdMappings([
+            let idMappings = await this.getProductIdMappings([
                'APdo2mw_i6s4nVRvGcXCHUGApzTu-SmyQP92mmnTCKX_e69hUFxBZM10PAWMIlx84-M53cWeXlVUmhlZDiP3IUyw3I1-ly4Jhw',
                 'APdo2mw-GrLj4iFzXa8U0l_2ir0CkC6V7l3Vl8cqSUc5FtqfmUiFaPMGNaCcrGKoCYmDRdC67C8GN8SzHxSC0VZnBGPI_j2oVA',
                 'APdo2mw4NqXETrdTFWqzSi8RSk8iocY2TLdlVb0xghB_bJ_yl3_5y462T5V903iBRDVGbqwMrsSspfPUdBIy-4o5aqC7bDqp6w',
@@ -2097,8 +2089,24 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     );
                 }
             } else if (source === "user-provided") {
-                // return mediaItems as objects having productId set to the provided product ID (RPC ID).
-                mediaItems = textareaValueToArray(filter.productIds).map((pId) => ({ "productId": pId }));
+                // return mediaItems having either a productId or restId set                
+                mediaItems = textareaValueToArray(filter.hardcodedIds).map((id) => {
+                    // Identify the type of ID by its length
+                    if (id.length == 44) {
+                        return { productId: id };
+                    } else if (id.length == 98) {
+                        return { restId: id };
+                    }
+                });
+                
+                // get productId based on restId. This should be done before any filtering relying on extendMediaItemsWithMediaInfo is done
+                const idMappings = await this.apiUtils.getProductIdMappings(mediaItems.filter(m => m.restId).map(m => m.restId));
+                Object.keys(idMappings).forEach(restId => {
+                    const mediaItem = mediaItems.find(m => m.restId === restId);
+                    if (mediaItem !== undefined) {
+                        mediaItem.productId = idMappings[restId];
+                    }
+                });
             }
 
             log("Source read complete");
@@ -2609,7 +2617,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     apiSettings
                 );
 
-                // all we have is the productId (RPC ID) but the action will need mediaId
+                // all we have is the productId but the action will need mediaId
                 // I'm pretty sure every other source will have provided mediaId
                 // scrapeVideos doesn't technically need mediaId, but for the case of user-provided IDs, we're 
                 // going to need to grab duration which involves setting the items as favorites and then reading 
@@ -3037,7 +3045,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         const apiSettings = getForm(".settings-form");
 
         if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {                    
-            // if RPC IDs specified by user, we want to prevent filtering of the preliminary results
+            // if Product IDs specified by user, we want to prevent filtering of the preliminary results
             // as they will only contain the productId in this case.
             if (source !== "user-provided") {
                 // for testing, get a small dataset by using a condition the initial RPC call can handle

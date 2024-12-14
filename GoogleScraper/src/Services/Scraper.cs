@@ -184,7 +184,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         List<VideoFileGoogle> videosNotInGoogle = [];
         foreach (var video in videosInDatabase)
         {
-            if (!idsScraped.Any(id => id == video.GoogleId))
+            if (!idsScraped.Any(id => id == video.RestId))
             {
                 videosNotInGoogle.Add(video);
             }
@@ -194,10 +194,10 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
         if (count > 0)
         {
             _logger.LogDebug("Total cases of video present in db but not on google photos: {count}", count);
-            _logger.LogDebug("List of GoogleIds for records not found in latest scrape:");
+            _logger.LogDebug("List of RestIds for records not found in latest scrape:");
             foreach (var video in videosNotInGoogle)
             {
-                _logger.LogDebug("{videoId}", video.GoogleId);
+                _logger.LogDebug("{videoId}", video.RestId);
             }
             Console.WriteLine("Do you want to delete videosNotInGoogle from the database? (Y/N)");
             string? response = Console.ReadLine();
@@ -206,10 +206,10 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
                 _db.RemoveRange(videosNotInGoogle);
                 _db.SaveChanges();
                 _logger.LogInformation("Deleted videosNotInGoogle from the database.");
-                _logger.LogInformation("List of GoogleIds for records just deleted:");
+                _logger.LogInformation("List of RestIds for records just deleted:");
                 foreach (var video in videosNotInGoogle)
                 {
-                    _logger.LogInformation("{videoId}", video.GoogleId);
+                    _logger.LogInformation("{videoId}", video.RestId);
                 }
             }
             else
@@ -232,24 +232,24 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             // Create a new VideoFileGoogle object and compare it against a possible existing record
             var v = new VideoFileGoogle()
             {
-                GoogleId = m.id,
+                RestId = m.id,
                 Name = m.filename,
                 CreatedDate = m.mediaMetadata.creationTime.ToLocalTime(),
                 Description = m.description,
                 LastMetadataScanTimestamp = DateTime.Now
             };
             
-            VideoFileGoogle? existing = await _db.GoogleVideos.FirstOrDefaultAsync(g => g.GoogleId == v.GoogleId);
+            VideoFileGoogle? existing = await _db.GoogleVideos.FirstOrDefaultAsync(g => g.RestId == v.RestId);
             if (existing is null)
             {
-                _logger.LogDebug("new video from Google: {id}", v.GoogleId);
+                _logger.LogDebug("new video from Google: {id}", v.RestId);
                 _db.Add(v);
             }
             // possibly update existing record if metadata changed
             // but remember the REST API only returns certain metadata properties including Name & Description
             else if (VideoFileGoogle.IsRestApiMetadataDifferent(v, existing))
             {
-                _logger.LogDebug("updating google video: {id}", v.GoogleId);
+                _logger.LogDebug("updating google video: {id}", v.RestId);
                 // copies all possible fields that come back from the REST API into existing record
                 // (but leaves other fields, like Size and Duration, alone)
                 existing.SyncToRestAPIResult(v);
@@ -257,7 +257,7 @@ public class Scraper(VideoContextFactory dbFactory, Settings settings, ILogger<S
             }
             else
             {
-                _logger.LogDebug("no changes to video: {id}", v.GoogleId);
+                _logger.LogDebug("no changes to video: {id}", v.RestId);
             }
         }
         return scrapedIds;

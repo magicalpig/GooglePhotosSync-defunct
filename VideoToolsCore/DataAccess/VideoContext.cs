@@ -34,7 +34,7 @@ public class VideoContext : DbContext
         modelBuilder.Entity<VideoFileWindows>()
             .HasKey(v => new { v.Path, v.Owner });
         modelBuilder.Entity<VideoFileGoogle>()
-            .HasKey(v => new { v.GoogleId, v.Owner });
+            .HasKey(v => new { v.RestId, v.Owner });
         modelBuilder.Entity<GoogleAlbum>()
             .HasKey(a => new { a.Id, a.Owner });
         modelBuilder.Entity<AlbumMembership>()

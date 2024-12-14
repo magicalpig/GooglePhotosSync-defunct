@@ -4,24 +4,24 @@ using WebHelper.Services;
 
 namespace WebHelper.Controllers;
 [Route("api/[controller]")]
-public class RpcScrapedVideosController(WebApiVideoService videoService, WebApiCurrentUserService currentUserService) : ControllerBase
+public class WebScrapedVideosController(WebApiVideoService videoService, WebApiCurrentUserService currentUserService) : ControllerBase
 {
     private readonly WebApiVideoService _videoService = videoService;
     private readonly WebApiCurrentUserService _currentUserService = currentUserService;
 
     [HttpPost]
-    public async Task<IActionResult> Post([FromBody] List<RpcScrapedVideo> videos)
+    public async Task<IActionResult> Post([FromBody] List<WebScrapedVideo> videos)
     {        
-        // Key is RPC ID. Value is result of update operation.
+        // Key is Product ID. Value is result of update operation.
         var dbUpdateResults = 
-            await _videoService.ProcessRpcScrapeAsync(videos);
+            await _videoService.ProcessWebScrapeAsync(videos);
 
         // If some matches could not be made, 
-        // check whether there are records in database that don't yet have RPC ID.
-        List<string> recordsWithNoRpcId = [];
+        // check whether there are records in database that don't yet have Product ID.
+        List<string> recordsWithNoProductId = [];
         if (dbUpdateResults.Any(kv => kv.Value == UpdateResultCode.NotFound))
         {
-            recordsWithNoRpcId = await _videoService.GetGoogleVideosWithNoRpcIdASync();
+            recordsWithNoProductId = await _videoService.GetGoogleVideosWithNoProductIdASync();
         }
         return Ok(new
         {
@@ -38,7 +38,7 @@ public class RpcScrapedVideosController(WebApiVideoService videoService, WebApiC
             recordsFailedToUpdate = dbUpdateResults.Where(kv => kv.Value == UpdateResultCode.Failure)
             .Select(kv => kv.Key)
             .ToList(),
-            recordsWithNoRpcId
+            recordsWithNoProductId
         });
     }
 
@@ -46,6 +46,6 @@ public class RpcScrapedVideosController(WebApiVideoService videoService, WebApiC
     public IActionResult Get()
     {
         var user = _currentUserService.UserId;
-        return Ok($"Hello from RpcScrapedVideosController, {user}!");
+        return Ok($"Hello from WebScrapedVideosController, {user}!");
     }
 }

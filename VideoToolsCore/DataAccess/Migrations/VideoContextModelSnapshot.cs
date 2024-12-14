@@ -17,7 +17,7 @@ namespace VideoToolsCore.DataAccess.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
 
-            modelBuilder.Entity("VideoToolsCore.Models.AlbumMembership", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.AlbumMembership", b =>
                 {
                     b.Property<string>("VideoId")
                         .HasColumnType("TEXT");
@@ -37,7 +37,7 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("AlbumMemberships");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.GoogleAlbum", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.GoogleAlbum", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
@@ -56,9 +56,9 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("GoogleAlbums");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.VideoFileGoogle", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.VideoFileGoogle", b =>
                 {
-                    b.Property<string>("GoogleId")
+                    b.Property<string>("RestId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Owner")
@@ -83,7 +83,7 @@ namespace VideoToolsCore.DataAccess.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
-                    b.Property<string>("RpcId")
+                    b.Property<string>("ProductId")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("Size")
@@ -92,12 +92,12 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("GoogleId", "Owner");
+                    b.HasKey("RestId", "Owner");
 
                     b.ToTable("GoogleVideos");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.VideoFileWindows", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.VideoFileWindows", b =>
                 {
                     b.Property<string>("Path")
                         .HasColumnType("TEXT");
@@ -153,14 +153,14 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.ToTable("WindowsVideos");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.AlbumMembership", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.AlbumMembership", b =>
                 {
-                    b.HasOne("VideoToolsCore.Models.GoogleAlbum", "GoogleAlbum")
+                    b.HasOne("VideoToolsCore.DataAccess.Models.GoogleAlbum", "GoogleAlbum")
                         .WithMany("AlbumMemberships")
                         .HasForeignKey("AlbumId", "Owner")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("VideoToolsCore.Models.VideoFileGoogle", "VideoFileGoogle")
+                    b.HasOne("VideoToolsCore.DataAccess.Models.VideoFileGoogle", "VideoFileGoogle")
                         .WithMany("AlbumMemberships")
                         .HasForeignKey("VideoId", "Owner")
                         .OnDelete(DeleteBehavior.Cascade);
@@ -170,12 +170,12 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.Navigation("VideoFileGoogle");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.GoogleAlbum", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.GoogleAlbum", b =>
                 {
                     b.Navigation("AlbumMemberships");
                 });
 
-            modelBuilder.Entity("VideoToolsCore.Models.VideoFileGoogle", b =>
+            modelBuilder.Entity("VideoToolsCore.DataAccess.Models.VideoFileGoogle", b =>
                 {
                     b.Navigation("AlbumMemberships");
                 });

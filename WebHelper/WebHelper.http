@@ -5,10 +5,10 @@ Content-Type: application/json
 
 [
   {
-    "rpcId": "aaastork",
+    "productId": "aaastork",
     "size": 0,
     "durationMs": 0,
-    "googleId": "APdo2mw_bSMiGD1eJeEKX3XcPc88EGidtn9kZRaZS8fmVPaDLd2tjXtOF4MKr0sZKzsUdOR5AQY8qFJX5zQIozMDnGnEuvzBZA"
+    "restId": "APdo2mw_bSMiGD1eJeEKX3XcPc88EGidtn9kZRaZS8fmVPaDLd2tjXtOF4MKr0sZKzsUdOR5AQY8qFJX5zQIozMDnGnEuvzBZA"
   }
 ]
 ###

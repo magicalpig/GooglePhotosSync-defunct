@@ -21,7 +21,7 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
     private readonly ILogger<WebApiVideoService> _logger = logger;
 
 
-    public async Task<ConcurrentDictionary<string, UpdateResultCode>> ProcessRpcScrapeAsync(List<RpcScrapedVideo> videos)
+    public async Task<ConcurrentDictionary<string, UpdateResultCode>> ProcessWebScrapeAsync(List<WebScrapedVideo> videos)
     {
         ConcurrentDictionary<string, UpdateResultCode> dbUpdateResults = [];
         ConcurrentBag<VideoFileGoogle> videosToUpdate = [];
@@ -30,17 +30,17 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
         // and keep track of videos which have changes to be committed.
         await Parallel.ForEachAsync(videos, async (inVideo, cancellationToken) =>
         {
-            if (string.IsNullOrEmpty(inVideo.RpcId))
+            if (string.IsNullOrEmpty(inVideo.ProductId))
             {
-                _logger.LogWarning("No RPC ID for video {video}", inVideo);
+                _logger.LogWarning("No Product ID for video {video}", inVideo);
                 return;
             }
 
             var existing = await GetMatchingGoogleVideo(inVideo);
             if (existing == null)
             {
-                _logger.LogDebug("No record found for RpcId {RpcId} or GoogleId {GoogleId}", inVideo.RpcId, inVideo.GoogleId);
-                dbUpdateResults.TryAdd(inVideo.RpcId, UpdateResultCode.NotFound);
+                _logger.LogDebug("No record found for ProductId {productid} or RestId {RestId}", inVideo.ProductId, inVideo.RestId);
+                dbUpdateResults.TryAdd(inVideo.ProductId, UpdateResultCode.NotFound);
                 return;
             }
 
@@ -48,10 +48,10 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
             // all videos that were found in the database will at least have their last scan timestamp updated
             videosToUpdate.Add(existing);
 
-            var wasChanged = MergeRpcDataWithGoogleVideo(inVideo, existing);
+            var wasChanged = MergeWebScrapeDataWithGoogleVideo(inVideo, existing);
             if (!wasChanged)
             {
-                dbUpdateResults.TryAdd(inVideo.RpcId, UpdateResultCode.NoChange);
+                dbUpdateResults.TryAdd(inVideo.ProductId, UpdateResultCode.NoChange);
             }
         });
 
@@ -60,12 +60,12 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
         using VideoContext db = _contextFactory.CreateUserScopedVideoContext();
         foreach (var video in videosToUpdate)
         {
-            if (string.IsNullOrEmpty(video.RpcId))
+            if (string.IsNullOrEmpty(video.ProductId))
             {
                 continue;
             }
 
-            UpdateResultCode? code = dbUpdateResults.TryGetValue(video.RpcId, out var resultCode) ? resultCode : null;
+            UpdateResultCode? code = dbUpdateResults.TryGetValue(video.ProductId, out var resultCode) ? resultCode : null;
 
             try
             {
@@ -78,45 +78,45 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
                 // These should keep that result code.
                 if (code != UpdateResultCode.NoChange) 
                 {
-                    dbUpdateResults.TryAdd(video.RpcId, UpdateResultCode.Success);
+                    dbUpdateResults.TryAdd(video.ProductId, UpdateResultCode.Success);
                 }
                 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating video {video}", video);
-                dbUpdateResults.TryAdd(video.RpcId, UpdateResultCode.Failure);
+                dbUpdateResults.TryAdd(video.ProductId, UpdateResultCode.Failure);
             }
         }
         return dbUpdateResults;
     }
 
-    public async Task<VideoFileGoogle?> GetMatchingGoogleVideo(RpcScrapedVideo inVideo)
+    public async Task<VideoFileGoogle?> GetMatchingGoogleVideo(WebScrapedVideo inVideo)
     {
         using var db = _contextFactory.CreateUserScopedVideoContext();
 
-        // If a video is coming in with a GoogleId value, that's the REST ID for the video.
-        // The web client could only have obtained this by doing a HEAD call using the RPC ID and looking at
+        // If a video is coming in with a RestId value, that's the REST ID for the video.
+        // The web client could only have obtained this by doing a HEAD call using the Product ID and looking at
         // the redirect response.
-        return await db.GoogleVideos.FirstOrDefaultAsync(gv => gv.RpcId == inVideo.RpcId || gv.GoogleId == inVideo.GoogleId);
+        return await db.GoogleVideos.FirstOrDefaultAsync(gv => gv.ProductId == inVideo.ProductId || gv.RestId == inVideo.RestId);
     }
 
-    public bool MergeRpcDataWithGoogleVideo(RpcScrapedVideo inVideo, VideoFileGoogle existing)
+    public bool MergeWebScrapeDataWithGoogleVideo(WebScrapedVideo inVideo, VideoFileGoogle existing)
     {
         // compare fields for differences
         bool recordChanged = false;
-        foreach (var propName in typeof(RpcScrapedVideo).GetProperties().Select(p => p.Name))
+        foreach (var propName in typeof(WebScrapedVideo).GetProperties().Select(p => p.Name))
         {
-            var inValue = typeof(RpcScrapedVideo)?.GetProperty(propName)?.GetValue(inVideo);
+            var inValue = typeof(WebScrapedVideo)?.GetProperty(propName)?.GetValue(inVideo);
             var oldValue = typeof(VideoFileGoogle)?.GetProperty(propName)?.GetValue(existing);
             if (inValue is not null && !Equals(inValue, oldValue))
             {
-                if (propName == "GoogleId" && oldValue != null)
+                if (propName == "RestId" && oldValue != null)
                 {
-                    _logger.LogDebug("Refusing to change primary key field GoogleId from {existingGoogleId} to {newGoogleId}.", oldValue, inValue);
+                    _logger.LogDebug("Refusing to change primary key field RestId from {existingRestId} to {newRestId}.", oldValue, inValue);
                     continue;
                 }
-                _logger.LogDebug("{{{GoogleId}}} Updating {prop} from \"{googleVideoValue}\" to \"{inVideoValue}\"", existing.GoogleId, propName, oldValue, inValue);
+                _logger.LogDebug("{{{RestId}}} Updating {prop} from \"{googleVideoValue}\" to \"{inVideoValue}\"", existing.RestId, propName, oldValue, inValue);
                 typeof(VideoFileGoogle).GetProperty(propName)?.SetValue(existing, inValue);
                 recordChanged = true;
             }
@@ -124,10 +124,10 @@ public class WebApiVideoService(VideoContextFactory contextFactory, ILogger<WebA
         return recordChanged;
     }
 
-    public async Task<List<string>> GetGoogleVideosWithNoRpcIdASync()
+    public async Task<List<string>> GetGoogleVideosWithNoProductIdASync()
     {
         VideoContext db = _contextFactory.CreateUserScopedVideoContext();
-        return await db.GoogleVideos.Where(gv => string.IsNullOrEmpty(gv.RpcId)).Select(gv => gv.GoogleId).ToListAsync();
+        return await db.GoogleVideos.Where(gv => string.IsNullOrEmpty(gv.ProductId)).Select(gv => gv.RestId).ToListAsync();
     }
 }
 

@@ -9,19 +9,19 @@ public class VideoFileGoogle : VideoFileBase
 {
     private static readonly string ShortUrlBase = "https://photos.google.com/photo/";
     [FromGoogleRestApi]
-    public required string GoogleId { get; set; }
+    public required string RestId { get; set; }
 
-    // only gets set when setting RPCId
+    // only gets set when setting ProductId
     public string? Url { get; private set; }
 
     // this is the ID used in browser when calling the batchExecute RPC API
-    private string? _rpcId;
-    public string? RpcId
+    private string? _productId;
+    public string? ProductId
     {
-        get { return _rpcId; }
+        get { return _productId; }
         set
         {
-            _rpcId = value;
+            _productId = value;
             Url = ShortUrlBase + value;
         }
     }
@@ -38,13 +38,13 @@ public class VideoFileGoogle : VideoFileBase
         VideoFileGoogle other = (VideoFileGoogle)obj;
 
         return base.Equals(obj) &&
-             GoogleId == other.GoogleId &&
+             RestId == other.RestId &&
              Url == other.Url;
     }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(base.GetHashCode(), GoogleId, Url);
+        return HashCode.Combine(base.GetHashCode(), RestId, Url);
     }
 
     // for updating a google video record with data pulled from the REST API
@@ -69,7 +69,7 @@ public class VideoFileGoogle : VideoFileBase
         {
             if (!Equals(prop.GetValue(a), prop.GetValue(b)))
             {
-                Console.WriteLine($"Property {prop.Name} differs between {a.GoogleId} and {b.GoogleId}");
+                Console.WriteLine($"Property {prop.Name} differs between {a.RestId} and {b.RestId}");
                 return true;
             }
         }
