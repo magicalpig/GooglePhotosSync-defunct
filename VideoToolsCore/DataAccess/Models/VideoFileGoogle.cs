@@ -14,6 +14,8 @@ public class VideoFileGoogle : VideoFileBase
     // only gets set when setting ProductId
     public string? Url { get; private set; }
 
+    public bool TakesUpSpace { get; set; } = true;
+
     // this is the ID used in browser when calling the batchExecute RPC API
     private string? _productId;
     public string? ProductId

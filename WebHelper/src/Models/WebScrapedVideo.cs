@@ -5,4 +5,5 @@ public record WebScrapedVideo()
     public long? Size { get; init; }
     public long? DurationMs { get; init; }
     public string? RestId { get; init; }
+    public bool TakesUpSpace { get; init; }
 }

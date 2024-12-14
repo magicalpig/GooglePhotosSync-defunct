@@ -89,6 +89,9 @@ namespace VideoToolsCore.DataAccess.Migrations
                     b.Property<long?>("Size")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("TakesUpSpace")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 

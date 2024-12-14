@@ -118,7 +118,6 @@
     <div class="action-buttons">
       <button type="button" id="scrapeVideos" title="Scrape Videos">Scrape Videos</button>
       <button type="button" id="testScrapeVideos" title="Test Scrape Videos">Test Scrape Videos</button>
-      <button type="button" id="testHeadCalls" title="Test HEAD Calls">Test HEAD Calls</button>
       <button id="showExistingAlbumForm" title="Add To Existing Album">Add To Existing Album</button>
       <button id="showNewAlbumForm" title="Add To New Album">Add To New Album</button>
       <button type="button" id="toTrash" title="Move To Trash">Move to Trash</button>
@@ -183,7 +182,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         <details open class="include-albums">
           <summary>Select Albums</summary>
           <fieldset>
-            <select size="9" multiple="multiple" class="select-multiple albums-select scroll" name="albumsInclude" required>
+            <select size="19" multiple="multiple" class="select-multiple albums-select scroll" name="albumsInclude" required>
               <option value="" title="First Album">Press Refresh</option>
             </select>
             <div class="select-control-buttons-row">
@@ -948,6 +947,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             };
         }
 
+        // when doing video scrape, all videos will run through this parser following a call to extendMediaInfoWithBulkInfo
         function itemBulkInfoParse(rawItemData) {
             return {
                 productId: rawItemData?.[0],
@@ -1867,8 +1867,9 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     size: item.size,
                     durationMs: item.duration || item.durationMs,
                     restId: item.restId, // only present if IDs were pasted as the data source,
-                                             // or this is the recursive call to this function
-                    productId: item.productId
+                                         // or this is the recursive call to this function 
+                    productId: item.productId,
+                    takesUpSpace: item.takesUpSpace
                 };
             });
 
@@ -1916,27 +1917,33 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                 return;
             }
 
+            // we sent media items to server identifying them by product id.
+            // server said it couldn't find a record with a matching product id for some of them.
+            // it also said it has records that don't yet have a product id (but do have a rest id).
+            // We'll map the rest ids for those records to product ids and see if any of the failed media items
+            // can be fixed by attaching the rest id to them.
             const shouldGetProductIds = await getUserConfirmationInModal(
                 `There were ${data.recordsWithNoProductId.length} records in the database with no Product ID.\nWould you like us to run some HEAD requests against Google Photos to try to convert the REST IDs to Product IDs ?`
             );
             if (shouldGetProductIds) {
+                // { productId: restId } dictionary
                 let idMappings = await this.getProductIdMappings(data.recordsWithNoProductId);
-                if (Object.keys(idMappings).length > 0) {
-                    let fixedMediaItems = Object.keys(idMappings)
-                        .map((restId) => {
-                            // try to attach REST ID to media items that failed to update a record on first attempt.
-                            // it could also be the case that the product id does not correlate to a media item sent on first attempt
-                            // but we still want to let the server know of the id mapping
+                               
+                let fixedMediaItems = Object.keys(idMappings)
+                        .map(productId => {
+                            const restId = idMappings[productId];
                             const mediaItem = minimalMediaItems.find(
-                                (item) => item.restId === restId
+                                (item) => item.productId === productId
                             );
                             if (mediaItem === undefined) {
-                                log(`Mapped REST ID ${restId} to Product ID ${productId} but scrape did not give a media item with this Product ID`, "error");
+                                log(`Mapped Product ID ${productId} to REST ID ${restId} but scrape did not give a media item with this Product ID`, "error");
                             }
                             return { ...mediaItem, restId: restId };
                         })
                         .filter((g) => g.productId && g.restId);
-                    // send the fixed media items to the server
+
+                // send the fixed media items to the server
+                if (fixedMediaItems.length) {
                     this.sendMediaItemsToServer(fixedMediaItems);
                 }
             }
@@ -1955,54 +1962,9 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             );
             
             // convert the [productId, restId] tuples to a dictionary
-            const newMappings = {};
-            tuples.forEach((tuple) => {
-                const [productId, restId] = tuple;
-                newMappings[restId] = productId;
-            });
-            return newMappings;
+            return Object.fromEntries(tuples);            
         }
-
-
-        async testHeadCalls() {
-            let idMappings = await this.getProductIdMappings([
-               'APdo2mw_i6s4nVRvGcXCHUGApzTu-SmyQP92mmnTCKX_e69hUFxBZM10PAWMIlx84-M53cWeXlVUmhlZDiP3IUyw3I1-ly4Jhw',
-                'APdo2mw-GrLj4iFzXa8U0l_2ir0CkC6V7l3Vl8cqSUc5FtqfmUiFaPMGNaCcrGKoCYmDRdC67C8GN8SzHxSC0VZnBGPI_j2oVA',
-                'APdo2mw4NqXETrdTFWqzSi8RSk8iocY2TLdlVb0xghB_bJ_yl3_5y462T5V903iBRDVGbqwMrsSspfPUdBIy-4o5aqC7bDqp6w',
-                'APdo2mwCPc22nIXUuFTk0GC-ebASmMqlfFat5XTtIpCdbK825BvtSmJ1R0SXmw5OSFdLL5silgY2F4UetRv9qPRls1ttAAm8jA',
-                'APdo2mwLU3sViECxEOjBjkpr_ktUTKe8LG6kUu5jnD9RdqhZ7oGn53_o59KFNj3-5GC7uKpEMO6Ft_JT5iBrMsyRd3SInteEiA',
-                'APdo2mwqBctZkndYMqkgv5rVLuyfYXQRu2cJK3fdzr0Aod4Gi-O56bX4v5tDvmoJLA-w6m2k2kCda7-ZWm6LaqfxF29sVqpo9w',
-                'APdo2mwtH0PWTplVBpJd_JIPgZwS85RjLZHJpufFc0ILslogihaoHA4TFnQse0xJnqnjvj8eUX6pZUgHaa3ZyJGxseZ_ePOhGw',
-                'APdo2mwUO1cWf-R5Qr2TtRMp3TcT7zlX6JL9SZ6hGa1eEu0zWP-YmDl1JNE6R0WI3isrAtuPip2dfaIawZkpw7y77bp5zyit2A',
-                'APdo2mxAXf7o2SbREsKiBy0p6-YaqlDA_r6YUFWjsp5qIolvKlwbCQHAQb2GO1OBfKPJrJIs83jC_6chA8cJ4aHBQlvXsBgTVw',
-                'APdo2mxbxHBiDbyKykr8376HXskm45sK79A2Vml0Fss6vJCwhSF35d39FMD021W4-JbG03FnO2T47-AkC7HkfO1DQHSAo6CAww',
-                'APdo2mxG_zNFlPNbkKP4FcHkoYF-SNaVWsIPtWyOLiQM4tK0IaUk9q1atznEd1HPc7v6iDIxVwmCxQA841d06AyW1bU4xdq7Rg',
-                'APdo2mxiTdqWM2cEj1l0oaOsEgkZuP81qVCXDE2ftNO0M5GB9mYgNSy889eJWCTVudn6vs3_wUS_8Mh_-vzJvsNctpJvlw4ZiA',
-                'APdo2mxmmSZok5KL_6kcXreZEjfOeF-JQmt_WRZ7ebnjdchhMSzvOaU48UoR5WAV_mPdd4U_0OcaUd1umYyr463PscXbtgfz5g',
-                'APdo2mxMRBgHugmqKnoN376b8HqJ6TJJ53j4WXyRQCxg6qBr-Bzyiom0l0uBVpyjaTs_4Bavrcgj3Uh6wEBxgfiMRJ-ZMcO_cQ',
-                'APdo2mxPc-0StDjiSqH8hiVRGQ-dkGkLKR4F-8L96dpst2_2CwTxAThTD0_CZE-kMy8Vi3scRY0GYO4lwMWNBezaHqMMNmHDsQ',
-                'APdo2mxpsCiGJlN7AS0eh5El3dtvc7nVzukywejblsKVaNvnmjW9cwrUb1t6q1OfXrH5fiyDxiZXm6Xm_nxx95vfiALLeUQMRQ',
-                'APdo2mxR8Q0rgF68FKXe5Vm37nQNtbQM2vrqI9DvylP9gHuthB6r84WqtoaxHBOcxRa9qtmVFz4XAGrBm8K0aryCx7SYYcErzA',
-                'APdo2mxtxmSZ99oLfVwamTVxPu7KxdzGi7dNMZnWYul4FC1ZlUCHxwWWvzBANf9lnA88tV5waMhYr9rIxV545DaJPXqX-FDGvw',
-                'APdo2mxVy9d9sVMdUfah2GrcHecAj_x3qX6mD-HUD_oujeoJarFxKhUJqI5PbRNY3HrLttf6asMzBn7QtJxUOLPUdBFdH76eFA',
-                'APdo2mxzEJqYi1tEbPlYUADwL4uv6a_reD0FmIGOTqBsoRJ_5p-89oYtZvrdqCUXZJ_5m-uHauUyscJtb1iyB7JmKjfGjaYAcg',
-                'APdo2myn1DhhTBf8Yaapuv6V87wagH8xFsOQidTTGer6gaEyJ94wRRw3KjCNhUoILuxXZIoOFVFT9EEiubNxKzcuLsy8M3PS4A',
-                'APdo2mypL-hPVoBeRfezVI2ehRN8Ko5RmcBHpn7veQfqaQITDHuUhFpwb612Jg5OD9kxubZ8vUrm0Nin3tiu_iPj9nW-RUswPw',
-                'APdo2myPT5Sd4dHdTNLgHu8geQSW19_a1Z3r7hacBqBNjmJnw7MQjrUBock41C5OnG_-aXUvG2vHWJVZVTv4ErLslF0ucQozeA',
-                'APdo2mysGvvxJy6vojw6IwxImeB1VbaH2Z2LOAMHIzzepnk2-pJ9EHgwFTx4sfYJf92kRS1F55BSk9QGoTjZ01on1Lcj0Qm5mA',
-                'APdo2myt5qOyyVpUiE1wY-SII8exaxmWHB7eAIXhNLwdiUS_WoJQ0F6rY56dWhN9qtEsHb5NmWqiBkz47FOCiZwPhEiL6Al91Q',
-                'APdo2myY7LbhLRBk0VVyBeSZNH62S0VUjI17I5pHYEXFLxNZM2WZJcggNjKHnYsv4lOlb6ypM4oybZLiOrIjQpFgk9BfdFyVJg',
-                'APdo2myZgoe8-fss2Qd7U60jmDFjGCXrNJDAEBYVlzuuRDyIy1HP9nCzFwnYCbaqPIO_j1IAjxLqHI-_2vpPfgIhzvgMKgx9bw',
-                'APdo2mz1dQElzovowNeKFO2Qype6Uu7zPeVOgF0yzRg1B57slzfPd6hfof-AvqygGWtp-2p8OcF2FIjZLaOtmnluWxgGKuuxVw',
-                'APdo2mz1MRMQp3HXKXr2mSFJStXfIYuMj7KnGj2qfSopoP500ptj8hsWcD3gRWHvG7deG-y0m1T2qMdwF0gD51zPtOhW6WTWnw',
-                'APdo2mzHSxn_2E8o5FkPnbE-wHZq8auxKOEkkI87kFfxWVKf5Z7oMPbcJ9QFmL9UMFpyBCZH0Hd5dU4dal6TdECmZA-6rTanJg',
-                'APdo2mziKzGdIO7MfNKiUGi26uG4vR2CI08raErh0kWTqH1nfR7U-mFShAPwoS2WWXSHURPyHjnp9Vgv93r7uTEiS1hLiM0BYQ',
-                'APdo2mzLt-9m6Yy1awLdw6vIqOeE2slbqjAIJfWN7smSzgPTW8Q06ds3sz-aWSPdEDI9zUrn86NhmADWnxpPUXjeGDtu4jwLjQ',
-                'APdo2mzMPP2vJ48Lpr1XvM-VBHzhRnyik0EGVlubTXK_k5OC6FZ4d5m4lzrHTozwBCioB6dTp2Rje_siOU1AWejwqQoCfif4pA'
-            ]);    
-            console.log(idMappings);       
-        }
-    }
+    }        
 
     function dateToHHMMSS(date) {
         // Options for formatting
@@ -2099,12 +2061,13 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                     }
                 });
                 
-                // get productId based on restId. This should be done before any filtering relying on extendMediaItemsWithMediaInfo is done
+                // For the ones defined as rest ids, get productId.
+                // This should be done before any filtering relying on extendMediaItemsWithMediaInfo is done
                 const idMappings = await this.apiUtils.getProductIdMappings(mediaItems.filter(m => m.restId).map(m => m.restId));
-                Object.keys(idMappings).forEach(restId => {
+                Object.entries(idMappings).forEach(([productId, restId]) => {
                     const mediaItem = mediaItems.find(m => m.restId === restId);
-                    if (mediaItem !== undefined) {
-                        mediaItem.productId = idMappings[restId];
+                    if (mediaItem) {
+                        mediaItem.productId = productId;
                     }
                 });
             }
@@ -2666,9 +2629,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                         await this.apiUtils.unFavorite(mediaItems);
                     if (action.elementId === "scrapeVideos" || action.elementId === "testScrapeVideos")
                         await this.apiUtils.sendMediaItemsToServer(mediaItems);
-                    if (action.elementId === "testHeadCalls")
-                        await this.apiUtils.testHeadCalls();
-
+                    
                     log(
                         `Task completed in ${timeToHHMMSS(
                             new Date() - startTime
@@ -2975,9 +2936,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         { elementId: "lock", needsMediaId: true },
         { elementId: "unLock", needsMediaId: true },
         { elementId: "scrapeVideos" },
-        { elementId: "testScrapeVideos" },
-        { elementId: "testHeadCalls" }
-
+        { elementId: "testScrapeVideos" }        
     ];
 
     async function getUserConfirmationInModal(message) {
@@ -3065,43 +3024,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             if (!filter.space && !filter.quality && !filter.lowerBoundarySize && !filter.higherBoundarySize && !filter.fileNameRegex && !filter.descriptionRegex) {
                 filter.lowerBoundarySize = 69;
             }
-        }
-        else if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
-            source = "library";
-            // force a hardcoded filter that returns all videos
-            // The condition on size will force additional RPC calls to obtain file size.
-            // The dateType condition is needed to even though date range is not specified.    
-            filter = {
-                "type": "video",
-                "lowerBoundarySize": 69,
-                "dateType" : "taken"
-            };
-            
-            if (actionId === "testScrapeVideos") {
-                // make query restrictive without referencing certain metadata that require additional API calls
-                filter = {
-                    ...filter,
-                    "lowerBoundaryDate": "2024-11-12T15:25", 
-                    "higherBoundaryDate": "2024-12-26T15:28",
-                    "intervalType": "include"
-                };
-            }
-            // abort mission if my web api is not running
-            log("Confirming web server is running");
-            if (await apiUtils.confirmWebServerRunning()) {
-                log("Web server is running");
-            } else {
-                log("Web server is not running", "error");
-                return;
-            }
-        }
-        // alter form such the media search action is fast
-        else if (actionId === "testHeadCalls") {
-            source = "query";
-            filter = {
-                "searchQuery": "Schenectady"
-            };            
-        }
+        }        
         
         if (!userConfirmation(action, filter)) return;
         
