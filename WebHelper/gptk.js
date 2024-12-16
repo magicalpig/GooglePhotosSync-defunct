@@ -117,7 +117,6 @@
   <div class="action-bar">
     <div class="action-buttons">
       <button type="button" id="scrapeVideos" title="Scrape Videos">Scrape Videos</button>
-      <button type="button" id="testScrapeVideos" title="Test Scrape Videos">Test Scrape Videos</button>
       <button id="showExistingAlbumForm" title="Add To Existing Album">Add To Existing Album</button>
       <button id="showNewAlbumForm" title="Add To New Album">Add To New Album</button>
       <button type="button" id="toTrash" title="Move To Trash">Move to Trash</button>
@@ -128,6 +127,7 @@
       <button type="button" id="unFavorite" title="Removed From Favorites">Un-Favorite</button>
       <button style="display: none;" type="button" id="lock" title="Move to Locked Folder">Move to Locked Folder</button>
       <button style="display: none;" type="button" id="unLock" title="Move out of Locked Folder">Move out of Locked Folder</button>
+      <button type="button" id="getDetails" title="Details">Details</button>
 
     </div>
 
@@ -905,6 +905,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                 duration: rawItemData?.at(-1)?.[76647426]?.[0],
                 descriptionShort: rawItemData?.at(-1)?.[396644657]?.[0],
                 isOwned: rawItemData?.[7]?.[12]?.[0] !== 27,
+                thumbnailUrl: rawItemData?.[1]?.[0],
             };
         }
 
@@ -944,6 +945,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                 mediaId: rawItemData?.[3],
                 dateUploaded: rawItemData?.[5],
                 duration: rawItemData?.at(-1)?.[76647426]?.[0],
+                thumbnailUrl: rawItemData?.[1]?.[0]
             };
         }
 
@@ -1469,6 +1471,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         }
     }
 
+    
     function log(logMessage, type = null) {
         const logPrefix = "[GPTK]";
         // Create a new div for the log message
@@ -1853,7 +1856,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
             const durationMappings = await this.getDurations(mediaItems.filter(m => !m.durationMs));
             mediaItems
                 .filter(m => !m.durationMs)
-                .forEach(m => {                
+                .forEach(m => {
                     m.durationMs = durationMappings[m.productId];
                 });
 
@@ -2585,7 +2588,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                 // scrapeVideos doesn't technically need mediaId, but for the case of user-provided IDs, we're 
                 // going to need to grab duration which involves setting the items as favorites and then reading 
                 // the favorites (which requires mediaId)
-                if (source === "user-provided" && (action.needsMediaId || action.elementId === "scrapeVideos")) {
+                if (source === "user-provided" && (action.needsMediaId || action.elementId === "scrapeVideos" || action.elementId === "getDetails")) {
                     mediaItems = await this.apiUtils.executeWithConcurrency(
                         this.api.attachMediaId,
                         (result) => Array.isArray(result) && result[0]?.mediaId,
@@ -2627,9 +2630,10 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
                         await this.apiUtils.setAsFavorite(mediaItems);
                     if (action.elementId === "unFavorite")
                         await this.apiUtils.unFavorite(mediaItems);
-                    if (action.elementId === "scrapeVideos" || action.elementId === "testScrapeVideos")
+                    if (action.elementId === "scrapeVideos")
                         await this.apiUtils.sendMediaItemsToServer(mediaItems);
-                    
+                    if (action.elementId === "getDetails")
+                        showDetails(mediaItems);
                     log(
                         `Task completed in ${timeToHHMMSS(
                             new Date() - startTime
@@ -2936,7 +2940,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         { elementId: "lock", needsMediaId: true },
         { elementId: "unLock", needsMediaId: true },
         { elementId: "scrapeVideos" },
-        { elementId: "testScrapeVideos" }        
+        { elementId: "getDetails" }
     ];
 
     async function getUserConfirmationInModal(message) {
@@ -2981,6 +2985,47 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         return true;
     }
 
+    function showDetails(mediaItems) {
+        const logPrefix = "[GPTK]";
+        mediaItems.forEach(item => {
+            let thumbnailUrl;
+            if (item.thumbnailUrl) {
+                thumbnailUrl = item.thumbnailUrl + '=w121-h215';
+            }
+    
+            // Create a new div for the log message
+            const logDiv = document.createElement("div");
+            logDiv.style.display = "flex";
+            logDiv.style.alignItems = "center";
+            logDiv.style.marginBottom = "10px";
+    
+            // Create an img element for the thumbnail
+            if (thumbnailUrl) {
+                const img = document.createElement("img");
+                img.src = thumbnailUrl;
+                logDiv.appendChild(img);
+            }
+
+            // Create a div for the text
+            const textDiv = document.createElement("div");
+            textDiv.style.whiteSpace = "pre";
+            textDiv.textContent = JSON.stringify(item, null, 2);
+            logDiv.appendChild(textDiv);
+    
+                
+            // Append the log message to the log container
+            try {
+                const logContainer = document.querySelector("#logArea");
+                logContainer.appendChild(logDiv);
+                if (document.querySelector("#autoScroll").checked)
+                    logDiv.scrollIntoView();
+            } catch (error) {
+                console.error(`${logPrefix} ${error}`);
+            }
+        });
+    }
+
+
     async function runAction(actionId) {
         const action = actions.find((action) => action.elementId === actionId);
         // user input value if action has a target
@@ -3003,19 +3048,10 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         // Parsed settings object
         const apiSettings = getForm(".settings-form");
 
-        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {                    
+        if (actionId === "scrapeVideos" || actionId === "getDetails") {                    
             // if Product IDs specified by user, we want to prevent filtering of the preliminary results
             // as they will only contain the productId in this case.
-            if (source !== "user-provided") {
-                // for testing, get a small dataset by using a condition the initial RPC call can handle
-                if (actionId === "testScrapeVideos") {                
-                    filter = {                    
-                        "lowerBoundaryDate": "2024-11-12T15:25", 
-                        "higherBoundaryDate": "2024-12-26T15:28",
-                        "intervalType": "include"
-                    };
-                }
-
+            if (source !== "user-provided") {                
                 filter.type = "video";
             }
             
@@ -3028,7 +3064,7 @@ AF1QipO5_1I-yBqPEJtPogQpY6VYU5dcg6zThRJZQb3p
         
         if (!userConfirmation(action, filter)) return;
         
-        if (actionId === "scrapeVideos" || actionId === "testScrapeVideos") {
+        if (actionId === "scrapeVideos") {
             // abort mission if my web api is not running
             log("Confirming web server is running");
             if (await apiUtils.confirmWebServerRunning()) {
